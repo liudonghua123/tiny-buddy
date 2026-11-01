@@ -1,0 +1,26 @@
+# systemd 单元示例
+#   sudo cp deploy/tiny-buddy.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now tiny-buddy
+[Unit]
+Description=TinyBuddy AI teammate platform
+After=network.target
+
+[Service]
+Type=simple
+User=tinybuddy
+WorkingDirectory=/opt/tiny-buddy
+Environment=NODE_ENV=production
+Environment=PORT=8787
+Environment=HOST=127.0.0.1
+Environment=DATABASE_FILE=/opt/tiny-buddy/data/tiny-buddy.db
+EnvironmentFile=-/opt/tiny-buddy/.env
+ExecStart=/usr/bin/pnpm --filter @tiny-buddy/server start
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/opt/tiny-buddy/data
+
+[Install]
+WantedBy=multi-user.target

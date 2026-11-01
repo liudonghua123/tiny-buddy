@@ -1,0 +1,12 @@
+# /etc/cloudflared/config.yml
+tunnel: <TUNNEL_ID>
+credentials-file: /etc/cloudflared/<TUNNEL_ID>.json
+
+ingress:
+  - hostname: buddy.example.com
+    service: http://127.0.0.1:8787
+    originRequest:
+      connectTimeout: 30s
+      noTLSVerify: false
+  # 兜底规则，必须是最后一条
+  - service: http_status:404

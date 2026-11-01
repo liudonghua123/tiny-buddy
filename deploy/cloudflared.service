@@ -1,0 +1,18 @@
+# Cloudflare 命名隧道（需先 cloudflared tunnel create tiny-buddy）
+#   sudo cp deploy/cloudflared.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now cloudflared
+[Unit]
+Description=Cloudflare Tunnel for TinyBuddy
+After=network.target tiny-buddy.service
+Wants=tiny-buddy.service
+
+[Service]
+Type=simple
+User=cloudflared
+ExecStart=/usr/local/bin/cloudflared --no-autoupdate --config /etc/cloudflared/config.yml tunnel run
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
