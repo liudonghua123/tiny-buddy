@@ -1,8 +1,15 @@
 # TinyBuddy
 
+[![CI](https://github.com/liudonghua123/tiny-buddy/actions/workflows/ci.yml/badge.svg)](https://github.com/liudonghua123/tiny-buddy/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Node](https://img.shields.io/badge/node-%3E%3D20-3c873a?logo=node.js&logoColor=white)](./package.json)
+
 **A runnable "AI teammate" platform.** Full-stack TypeScript, browser/server architecture. Ships with memory, skills, a knowledge base, bidirectional MCP, and scheduled tasks — guarded by RBAC, and able to expose the whole platform as a standard MCP server.
 
 [中文文档](./README.md) · [Docs index](./docs/README.md) · [Architecture](./docs/ARCHITECTURE.en.md) · [API](./docs/API.en.md) · [MCP](./docs/MCP.en.md) · [Deployment](./docs/DEPLOYMENT.en.md)
+
+Repo: <https://github.com/liudonghua123/tiny-buddy> · Live demo: <https://peak-enrolled-kingdom-winston.trycloudflare.com>
 
 ![Login](./docs/screenshots/login.png)
 

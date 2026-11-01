@@ -1,8 +1,15 @@
 # TinyBuddy
 
+[![CI](https://github.com/liudonghua123/tiny-buddy/actions/workflows/ci.yml/badge.svg)](https://github.com/liudonghua123/tiny-buddy/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Node](https://img.shields.io/badge/node-%3E%3D20-3c873a?logo=node.js&logoColor=white)](./package.json)
+
 **一个可以直接跑起来的「AI 同事」平台。** TypeScript 全栈 B/S 架构，自带记忆、技能、知识库、MCP 双向通道与定时任务，权限体系基于 RBAC，并且能把平台能力以标准 MCP 服务对外开放。
 
 [English](./README.en.md) · [文档索引](./docs/README.md) · [架构](./docs/ARCHITECTURE.md) · [API](./docs/API.md) · [MCP](./docs/MCP.md) · [部署](./docs/DEPLOYMENT.md)
+
+仓库：<https://github.com/liudonghua123/tiny-buddy> · 在线演示：<https://peak-enrolled-kingdom-winston.trycloudflare.com>
 
 ![登录页](./docs/screenshots/login.png)
 
