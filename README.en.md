@@ -14,6 +14,7 @@
 - [Features](#features)
 - [Screenshots](#screenshots)
 - [Quick start](#quick-start)
+- [Scripts](#scripts)
 - [Architecture](#architecture)
 - [Core design](#core-design)
 - [MCP: client and server](#mcp-client-and-server)
@@ -147,7 +148,7 @@ The pipeline doesn't change — only the quality of the prose.
 
 ---
 
-### Scripts
+## Scripts
 
 | Command | What it does |
 | --- | --- |
