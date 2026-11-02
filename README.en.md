@@ -86,6 +86,10 @@ TinyBuddy models the AI as a **team member**:
 | --- | --- |
 | ![Knowledge](./docs/screenshots/knowledge.png) | ![Schedules](./docs/screenshots/schedules.png) |
 
+**Session search and day grouping**
+
+![Session search](./docs/screenshots/session-search.png)
+
 | Members and roles | Audit log |
 | --- | --- |
 | ![Members](./docs/screenshots/members.png) | ![Audit](./docs/screenshots/audit.png) |

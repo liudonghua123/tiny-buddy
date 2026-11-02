@@ -86,6 +86,10 @@ TinyBuddy 把 AI 当成一个**团队成员**来建模：
 | --- | --- |
 | ![知识库](./docs/screenshots/knowledge.png) | ![定时任务](./docs/screenshots/schedules.png) |
 
+**会话搜索与按日分组**（会话变多后仍能快速定位）
+
+![会话搜索](./docs/screenshots/session-search.png)
+
 | 成员与角色 | 审计日志 |
 | --- | --- |
 | ![成员](./docs/screenshots/members.png) | ![审计](./docs/screenshots/audit.png) |
