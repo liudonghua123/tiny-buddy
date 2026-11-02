@@ -7,7 +7,7 @@
 
 **A runnable "AI teammate" platform.** Full-stack TypeScript, browser/server architecture. Ships with memory, skills, a knowledge base, bidirectional MCP, and scheduled tasks — guarded by RBAC, and able to expose the whole platform as a standard MCP server.
 
-[中文文档](./README.md) · [Docs index](./docs/README.md) · [Architecture](./docs/ARCHITECTURE.en.md) · [API](./docs/API.en.md) · [MCP](./docs/MCP.en.md) · [Deployment](./docs/DEPLOYMENT.en.md)
+[中文文档](./README.md) · [Changelog](./CHANGELOG.md) · [Docs index](./docs/README.md) · [Architecture](./docs/ARCHITECTURE.en.md) · [API](./docs/API.en.md) · [MCP](./docs/MCP.en.md) · [Deployment](./docs/DEPLOYMENT.en.md)
 
 Repo: <https://github.com/liudonghua123/tiny-buddy> · Live demo: <https://peak-enrolled-kingdom-winston.trycloudflare.com>
 
@@ -55,7 +55,7 @@ TinyBuddy models the AI as a **team member**:
 
 | Module | Capability |
 | --- | --- |
-| **Chat agent** | SSE streaming, multi-step tool calling, memory recall, skill activation, cancellation, session history, Markdown rendering |
+| **Chat agent** | SSE streaming, multi-step tool calls, memory recall, skill activation, interrupt, regenerate, message copy, session search and day grouping, code-block copy, Markdown |
 | **Memory** | 5 kinds (fact / preference / episode / procedure / entity); write-time dedup; hybrid scoring; manual CRUD + recall playground |
 | **Skills** | Declarative packs (instructions + triggers + references + required tools); **progressive disclosure** injects only active skills |
 | **Knowledge** | Multiple bases, heading-aware chunking, lexical + vector hybrid search, hits carry document name and score |

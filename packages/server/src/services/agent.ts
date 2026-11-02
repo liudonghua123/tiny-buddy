@@ -16,6 +16,7 @@ import { searchKnowledge } from "./knowledge";
 import { enabledSkillSpecs, getSkill, listSkills, bumpSkillUsage } from "./skills";
 import { availableMcpTools, callMcpTool } from "./mcp";
 import { isValidCron, nextRun } from "../lib/cron";
+import { deriveTitle } from "../lib/text";
 
 let cachedProvider: LlmProvider | null = null;
 
@@ -301,6 +302,10 @@ export interface RunAgentOptions {
   kind?: "chat" | "schedule" | "skill" | "mcp";
   refId?: string | null;
   signal?: AbortSignal;
+  /** 重新生成：复用已有用户消息，丢弃其后的回答，不再插入新的 user 消息 */
+  reuseUserId?: string;
+  /** 重新生成时沿用原来的技能选择 */
+  reuseSkillKey?: string | null;
 }
 
 export async function* runAgent(opts: RunAgentOptions): AsyncGenerator<AgentEvent> {
@@ -313,21 +318,34 @@ export async function* runAgent(opts: RunAgentOptions): AsyncGenerator<AgentEven
     | undefined;
   if (!session) throw new Error("会话不存在");
 
-  if (opts.skillKey) bumpSkillUsage(opts.skillKey);
+  const effectiveSkillKey = opts.reuseUserId ? (opts.reuseSkillKey ?? opts.skillKey ?? null) : (opts.skillKey ?? null);
+  if (effectiveSkillKey) bumpSkillUsage(effectiveSkillKey);
 
-  const userMessageId = newId("msg");
-  db.prepare(`INSERT INTO messages (id, session_id, role, content, parts, created_at) VALUES (?, ?, 'user', ?, ?, ?)`).run(
-    userMessageId,
-    sessionId,
-    input,
-    JSON.stringify([{ type: "text", text: input }]),
-    now(),
-  );
+  let userMessageId: string;
+  if (opts.reuseUserId) {
+    const existing = db
+      .prepare(`SELECT id, content FROM messages WHERE id = ? AND session_id = ? AND role = 'user'`)
+      .get(opts.reuseUserId, sessionId) as { id: string; content: string } | undefined;
+    if (!existing) throw new Error("待重新生成的消息不存在");
+    userMessageId = existing.id;
+    // 丢弃这条提问之后的所有回答，让重新生成的结果成为唯一版本
+    db.prepare(
+      `DELETE FROM messages WHERE session_id = ? AND role = 'assistant' AND rowid > (SELECT rowid FROM messages WHERE id = ?)`,
+    ).run(sessionId, userMessageId);
+  } else {
+    userMessageId = newId("msg");
+    db.prepare(`INSERT INTO messages (id, session_id, role, content, parts, created_at) VALUES (?, ?, 'user', ?, ?, ?)`).run(
+      userMessageId,
+      sessionId,
+      input,
+      JSON.stringify([{ type: "text", text: input }]),
+      now(),
+    );
+  }
 
   const isFirst = (db.prepare(`SELECT COUNT(*) AS n FROM messages WHERE session_id = ?`).get(sessionId) as { n: number }).n <= 1;
   if (isFirst) {
-    const title = input.replace(/\s+/g, " ").trim().slice(0, 24) || "新对话";
-    db.prepare(`UPDATE sessions SET title = ? WHERE id = ?`).run(title, sessionId);
+    db.prepare(`UPDATE sessions SET title = ? WHERE id = ?`).run(deriveTitle(input) || "新对话", sessionId);
   }
   db.prepare(`UPDATE sessions SET updated_at = ? WHERE id = ?`).run(now(), sessionId);
 
@@ -358,7 +376,7 @@ export async function* runAgent(opts: RunAgentOptions): AsyncGenerator<AgentEven
       sessionId,
       input,
       history,
-      skillKey: opts.skillKey,
+      skillKey: effectiveSkillKey,
       userName: user.name,
       locale: user.locale,
       signal: opts.signal,

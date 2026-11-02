@@ -177,9 +177,27 @@ export class MockProvider implements LlmProvider {
     };
 
     if (hasToolResult) {
-      const summary = zh
-        ? `我已经调用工具拿到结果了：\n\n> ${toolResult.slice(0, 600)}\n\n以上是根据你当前工作区数据得到的结果。需要我继续深入分析，或者把它整理成结论吗？`
-        : `I ran the tool and got this back:\n\n> ${toolResult.slice(0, 600)}\n\nThat's based on your current workspace data. Want me to dig deeper or turn it into a summary?`;
+      // 按工具名给出贴切的开场，避免"我调用了工具"这类机械措辞
+      const toolName = lastMsg.name ?? "";
+      const quoted = toolResult.slice(0, 600).replace(/\n/g, "\n> ");
+      let lead: string;
+      if (toolName === "knowledge_search") {
+        lead = zh ? "知识库里相关的段落如下：" : "Here's what the knowledge base returned:";
+      } else if (toolName === "memory_search") {
+        lead = zh ? "我在长期记忆里找到这几条：" : "From long-term memory:";
+      } else if (toolName === "memory_write") {
+        lead = zh ? "已经记下来了。" : "Saved to long-term memory.";
+      } else if (toolName.startsWith("mcp__")) {
+        lead = zh ? "外部 MCP 工具返回了这些内容：" : "The external MCP tool returned:";
+      } else if (toolName === "skill_list") {
+        lead = zh ? "当前可用的技能如下：" : "Skills available right now:";
+      } else {
+        lead = zh ? "工具返回结果：" : "Tool result:";
+      }
+      const tail = zh
+        ? "\n\n需要我把它整理成结论，或者继续深入某一条吗？"
+        : "\n\nWant me to turn this into a conclusion, or dig into one of these?";
+      const summary = `${lead}\n\n> ${quoted}${tail}`;
       yield* say(summary);
       yield { type: "usage", usage: this.#usage(req, summary) };
       yield { type: "done", finishReason: "stop" };
@@ -250,8 +268,8 @@ export class MockProvider implements LlmProvider {
         ? "你好，我是 TinyBuddy。我可以记住你的偏好、检索知识库、调用技能和定时任务，也能通过 MCP 连接外部工具。\n\n试试对我说「记住我偏好简洁的中文回答」。"
         : "Hi, I'm TinyBuddy. I can remember your preferences, search your knowledge, run skills and schedules, and connect external tools over MCP.\n\nTry saying: “Remember that I prefer concise answers.”"
       : zh
-        ? `我理解你的问题是「${lastUser.slice(0, 60)}」。\n\n当前运行在**本地演示模型**下（未配置 LLM API Key），所以我会用固定的推理框架回应：\n\n1. 先确认目标与约束；\n2. 检索已有记忆与知识，避免重复劳动；\n3. 需要外部数据时调用工具；\n4. 输出结论 + 下一步建议。\n\n在 \`.env\` 里配置 \`OPENAI_API_KEY\` 与 \`OPENAI_BASE_URL\` 后，这里会切换成真实的流式模型输出，工具调用链路完全一致。`
-        : `Here's how I'd approach “${lastUser.slice(0, 60)}”: understand the goal, recall relevant memory and knowledge, call tools when fresh data is needed, then answer with a conclusion and next steps.\n\nYou're currently on the **local demo model** (no LLM API key configured). Set \`OPENAI_API_KEY\` and \`OPENAI_BASE_URL\` in \`.env\` to switch to a real streaming model — the tool-calling pipeline stays exactly the same.`;
+        ? `关于「${lastUser.slice(0, 60)}」，我的处理路径是：\n\n1. **对齐目标**：确认你要的产出形态（结论 / 清单 / 文档）。\n2. **调用已有上下文**：先看长期记忆和知识库里有没有可复用的信息，避免重复劳动。\n3. **补齐缺口**：缺少外部数据时调用工具（检索、MCP），而不是凭印象作答。\n4. **交付**：给出结论，再说明下一步与风险。\n\n> 当前是本地演示模型（未配置 \`OPENAI_API_KEY\`），以上为固定的推理框架而非真实生成；配置后同一套工具调用链路会换成模型输出。`
+        : `On “${lastUser.slice(0, 60)}”, here's the path I'd take:\n\n1. **Align on the goal** — conclusion, checklist, or document?\n2. **Reuse context** — check long-term memory and the knowledge base before doing new work.\n3. **Fill the gaps** — call tools for fresh data instead of guessing.\n4. **Deliver** — a conclusion, then next steps and risks.\n\n> This is the local demo model (no \`OPENAI_API_KEY\`), so the above is a fixed reasoning frame rather than a generated answer. Configure a key and the same tool-calling pipeline switches to real model output.`;
     yield* say(text);
     yield { type: "usage", usage: this.#usage(req, text) };
     yield { type: "done", finishReason: "stop" };

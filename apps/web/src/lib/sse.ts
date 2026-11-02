@@ -9,17 +9,17 @@ interface StreamHandlers {
 }
 
 /** 以 POST 方式消费 SSE 流（EventSource 不支持请求体，因此手工解析） */
-export async function streamChat(sessionId: string, content: string, handlers: StreamHandlers): Promise<void> {
+async function streamRequest(path: string, body: unknown, handlers: StreamHandlers): Promise<void> {
   const token = getToken();
   let res: Response;
   try {
-    res = await fetch(`/api/sessions/${sessionId}/messages`, {
+    res = await fetch(path, {
       method: "POST",
       headers: {
         "content-type": "application/json",
         ...(token ? { authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify({ content }),
+      body: JSON.stringify(body),
       signal: handlers.signal,
     });
   } catch (err) {
@@ -71,4 +71,22 @@ export async function streamChat(sessionId: string, content: string, handlers: S
   } finally {
     reader.releaseLock();
   }
+}
+
+export function streamChat(
+  sessionId: string,
+  content: string,
+  handlers: StreamHandlers,
+  skillKey?: string | null,
+): Promise<void> {
+  return streamRequest(
+    `/api/sessions/${sessionId}/messages`,
+    { content, ...(skillKey ? { skillKey } : {}) },
+    handlers,
+  );
+}
+
+/** 重新生成最后一条回答（复用原提问，后端会丢弃旧回答） */
+export function streamRegenerate(sessionId: string, handlers: StreamHandlers): Promise<void> {
+  return streamRequest(`/api/sessions/${sessionId}/regenerate`, {}, handlers);
 }

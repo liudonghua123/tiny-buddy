@@ -20,11 +20,14 @@ import {
   X,
   Check,
   Loader2,
+  Copy,
+  RotateCcw,
+  Search,
 } from "lucide-react";
 import clsx from "clsx";
 import type { AgentEvent, Message, MessagePart, Session, Skill, ToolCallPart } from "@tiny-buddy/shared";
 import { api } from "../lib/api";
-import { streamChat } from "../lib/sse";
+import { streamChat, streamRegenerate } from "../lib/sse";
 import { useI18n } from "../lib/i18n";
 import { useAuth } from "../lib/auth";
 import { relativeTime, truncate } from "../lib/format";
@@ -33,6 +36,8 @@ import { Modal, Spinner } from "../components/ui";
 
 interface LiveState {
   text: string;
+  /** 按到达顺序累积的片段，保证「文本 → 工具 → 文本」的交错顺序与最终消息一致 */
+  parts: MessagePart[];
   tools: ToolCallPart[];
   memories: { id: string; content: string; score?: number; kind?: string }[];
   skill?: { key: string; name: string };
@@ -56,10 +61,54 @@ function toolIcon(name: string) {
   return TOOL_ICONS[name] ?? Wrench;
 }
 
+/** 从 React 节点树里取出纯文本，用于复制代码块 */
+function nodeText(node: unknown): string {
+  if (node == null || typeof node === "boolean") return "";
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(nodeText).join("");
+  const props = (node as { props?: { children?: unknown } }).props;
+  return props ? nodeText(props.children) : "";
+}
+
+function CodeBlock({ children }: { children?: unknown }) {
+  const { t } = useI18n();
+  const toast = useToast();
+  const code = nodeText(children).replace(/\n$/, "");
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      toast.success(t("chat.copied"));
+    } catch {
+      /* 剪贴板不可用时静默 */
+    }
+  };
+
+  return (
+    <div className="group/code relative">
+      <button
+        onClick={copy}
+        className="absolute right-2 top-2 z-10 flex h-6 items-center gap-1 rounded-md border border-line bg-surface/90 px-1.5 text-[10.5px] text-muted opacity-100 backdrop-blur transition hover:text-ink sm:opacity-0 sm:group-hover/code:opacity-100"
+        title={t("chat.copy")}
+        aria-label={t("chat.copy")}
+      >
+        <Copy size={10} /> {t("chat.copy")}
+      </button>
+      <pre>{children as React.ReactNode}</pre>
+    </div>
+  );
+}
+
 function Markdown({ text }: { text: string }) {
   return (
     <div className="md-body">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ a: (props) => <a {...props} target="_blank" rel="noreferrer" /> }}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          a: (props) => <a {...props} target="_blank" rel="noreferrer" />,
+          pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
+        }}
+      >
         {text}
       </ReactMarkdown>
     </div>
@@ -153,17 +202,68 @@ function MemoryBadge({ count, items }: { count: number; items: { content: string
   );
 }
 
-function MessageRow({ message, streaming }: { message: Message; streaming?: boolean }) {
+function MessageActions({
+  content,
+  onRegenerate,
+}: {
+  content: string;
+  onRegenerate?: () => void;
+}) {
   const { t } = useI18n();
-  const { user } = useAuth();
+  const toast = useToast();
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+      toast.success(t("chat.copied"));
+    } catch {
+      toast.error(t("chat.copy"));
+    }
+  };
+
+  return (
+    <div className="mt-1.5 flex items-center gap-0.5 opacity-100 transition sm:opacity-0 sm:group-hover/message:opacity-100 sm:focus-within:opacity-100">
+      <button
+        onClick={copy}
+        className="flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] text-faint transition hover:bg-elevated hover:text-ink"
+        title={t("chat.copy")}
+        aria-label={t("chat.copy")}
+      >
+        <Copy size={11} /> {t("chat.copy")}
+      </button>
+      {onRegenerate && (
+        <button
+          onClick={onRegenerate}
+          className="flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] text-faint transition hover:bg-elevated hover:text-ink"
+          title={t("chat.regenerate")}
+          aria-label={t("chat.regenerate")}
+        >
+          <RotateCcw size={11} /> {t("chat.regenerate")}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function MessageRow({
+  message,
+  streaming,
+  onRegenerate,
+}: {
+  message: Message;
+  streaming?: boolean;
+  onRegenerate?: () => void;
+}) {
+  const { t } = useI18n();
   const isUser = message.role === "user";
 
   if (isUser) {
     return (
-      <div className="flex justify-end">
+      <div className="group/message flex flex-col items-end">
         <div className="max-w-[85%] rounded-2xl rounded-br-md bg-brand-soft px-4 py-2.5 text-[14.5px] leading-relaxed text-ink sm:max-w-[75%]">
           {message.content}
         </div>
+        {!streaming && <MessageActions content={message.content} />}
       </div>
     );
   }
@@ -172,7 +272,7 @@ function MessageRow({ message, streaming }: { message: Message; streaming?: bool
   const hasTools = parts.some((p) => p.type === "tool");
 
   return (
-    <div className="flex gap-2.5 sm:gap-3">
+    <div className="group/message flex gap-2.5 sm:gap-3">
       <div className="mt-0.5 hidden h-7 w-7 shrink-0 items-center justify-center rounded-[9px] bg-gradient-to-br from-[#8b6dff] to-[#5b3ae0] sm:flex">
         <Sparkles size={13} className="text-white" />
       </div>
@@ -207,9 +307,31 @@ function MessageRow({ message, streaming }: { message: Message; streaming?: bool
         )}
 
         {streaming && hasTools && <span className="caret inline-block align-middle" />}
+        {!streaming && <MessageActions content={message.content} onRegenerate={onRegenerate} />}
       </div>
     </div>
   );
+}
+
+/** 按自然日把会话分组，历史更长时仍能快速定位 */
+function groupSessions(sessions: Session[], t: (k: string, p?: Record<string, string | number>) => string) {
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const startOfYesterday = startOfToday - 86_400_000;
+
+  const buckets: { label: string; items: Session[] }[] = [
+    { label: t("chat.groupToday"), items: [] },
+    { label: t("chat.groupYesterday"), items: [] },
+    { label: t("chat.groupEarlier"), items: [] },
+  ];
+
+  for (const s of sessions) {
+    const ts = new Date(s.updatedAt).getTime();
+    if (ts >= startOfToday) buckets[0].items.push(s);
+    else if (ts >= startOfYesterday) buckets[1].items.push(s);
+    else buckets[2].items.push(s);
+  }
+  return buckets.filter((b) => b.items.length > 0);
 }
 
 function SessionList({
@@ -228,6 +350,18 @@ function SessionList({
   loading: boolean;
 }) {
   const { t } = useI18n();
+  const [query, setQuery] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return sessions;
+    return sessions.filter(
+      (s) => s.title.toLowerCase().includes(q) || (s.preview ?? "").toLowerCase().includes(q),
+    );
+  }, [sessions, query]);
+
+  const groups = useMemo(() => groupSessions(filtered, t), [filtered, t]);
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 px-3 py-3">
@@ -235,42 +369,77 @@ function SessionList({
           <MessageSquarePlus size={14} /> {t("chat.newChat")}
         </button>
       </div>
-      <div className="px-3 pb-1">
-        <div className="text-[10.5px] font-medium uppercase tracking-[0.1em] text-faint">{t("chat.history")}</div>
+
+      <div className="px-3 pb-2">
+        <div className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-2 py-1.5">
+          <Search size={12} className="shrink-0 text-faint" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t("chat.searchSessions")}
+            className="w-full bg-transparent text-[12px] text-ink outline-none placeholder:text-faint"
+          />
+          {query && (
+            <button onClick={() => setQuery("")} className="shrink-0 text-faint hover:text-ink" aria-label="clear">
+              <X size={11} />
+            </button>
+          )}
+        </div>
       </div>
+
       <div className="scroll-thin flex-1 overflow-y-auto px-2 pb-3">
         {loading && sessions.length === 0 && (
           <div className="flex justify-center py-8">
             <Spinner />
           </div>
         )}
-        {!loading && sessions.length === 0 && <p className="px-2 py-6 text-center text-[12px] text-faint">{t("common.empty")}</p>}
-        {sessions.map((s) => (
-          <div
-            key={s.id}
-            className={clsx(
-              "group relative mb-0.5 flex cursor-pointer items-start gap-2 rounded-xl px-2.5 py-2 transition",
-              s.id === activeId ? "bg-brand-soft" : "hover:bg-elevated",
-            )}
-            onClick={() => onSelect(s.id)}
-          >
-            <div className="min-w-0 flex-1">
-              <div className={clsx("truncate text-[13px] font-medium", s.id === activeId ? "text-brand-ink" : "text-ink")}>
-                {s.title}
-              </div>
-              <div className="mt-0.5 truncate text-[11px] text-faint">
-                {s.preview ? truncate(s.preview, 42) : relativeTime(s.updatedAt, t)}
-              </div>
+        {!loading && sessions.length === 0 && (
+          <p className="px-2 py-6 text-center text-[12px] text-faint">{t("common.empty")}</p>
+        )}
+        {!loading && sessions.length > 0 && filtered.length === 0 && (
+          <p className="px-2 py-6 text-center text-[12px] text-faint">{t("common.empty")}</p>
+        )}
+
+        {groups.map((group) => (
+          <div key={group.label} className="mb-2">
+            <div className="px-2.5 pb-1 pt-2 text-[10.5px] font-medium uppercase tracking-[0.1em] text-faint">
+              {group.label}
             </div>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(s.id);
-              }}
-              className="mt-0.5 hidden h-6 w-6 shrink-0 items-center justify-center rounded-lg text-faint hover:bg-surface hover:text-danger group-hover:flex"
-            >
-              <Trash2 size={12} />
-            </button>
+            {group.items.map((s) => (
+              <div
+                key={s.id}
+                className={clsx(
+                  "group relative mb-0.5 flex cursor-pointer items-start gap-2 rounded-xl px-2.5 py-2 transition",
+                  s.id === activeId ? "bg-brand-soft" : "hover:bg-elevated",
+                )}
+                onClick={() => onSelect(s.id)}
+              >
+                <div className="min-w-0 flex-1">
+                  <div
+                    className={clsx(
+                      "truncate text-[13px] font-medium",
+                      s.id === activeId ? "text-brand-ink" : "text-ink",
+                    )}
+                  >
+                    {s.title}
+                  </div>
+                  <div className="mt-0.5 truncate text-[11px] text-faint">
+                    {s.preview ? truncate(s.preview, 42) : relativeTime(s.updatedAt, t)}
+                  </div>
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(s.id);
+                  }}
+                  className="mt-0.5 hidden h-6 w-6 shrink-0 items-center justify-center rounded-lg text-faint hover:bg-surface hover:text-danger group-hover:flex"
+                  title={t("chat.deleteSession")}
+                  aria-label={t("chat.deleteSession")}
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
+            ))}
           </div>
         ))}
       </div>
@@ -363,7 +532,7 @@ export function Chat() {
     (event: AgentEvent) => {
       switch (event.type) {
         case "run.start":
-          setLive({ text: "", tools: [], memories: [], wroteMemory: false });
+          setLive({ text: "", parts: [], tools: [], memories: [], wroteMemory: false });
           break;
         case "skill.active":
           setLive((prev) => (prev ? { ...prev, skill: { key: event.key, name: event.name } } : prev));
@@ -372,42 +541,46 @@ export function Chat() {
           setLive((prev) => (prev ? { ...prev, memories: event.items } : prev));
           break;
         case "text.delta":
-          setLive((prev) => (prev ? { ...prev, text: prev.text + event.delta } : prev));
+          setLive((prev) => {
+            if (!prev) return prev;
+            const parts = [...prev.parts];
+            const last = parts[parts.length - 1];
+            if (last && last.type === "text") {
+              parts[parts.length - 1] = { ...last, text: last.text + event.delta };
+            } else {
+              parts.push({ type: "text", text: event.delta });
+            }
+            return { ...prev, text: prev.text + event.delta, parts };
+          });
           break;
         case "tool.start":
-          setLive((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  tools: [
-                    ...prev.tools,
-                    {
-                      type: "tool",
-                      id: event.toolCallId,
-                      name: event.name,
-                      title: event.title,
-                      input: event.input,
-                      status: "running",
-                      source: event.source,
-                    },
-                  ],
-                }
-              : prev,
-          );
+          setLive((prev) => {
+            if (!prev) return prev;
+            const part: ToolCallPart = {
+              type: "tool",
+              id: event.toolCallId,
+              name: event.name,
+              title: event.title,
+              input: event.input,
+              status: "running",
+              source: event.source,
+            };
+            return { ...prev, tools: [...prev.tools, part], parts: [...prev.parts, part] };
+          });
           break;
         case "tool.end":
-          setLive((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  tools: prev.tools.map((tool) =>
-                    tool.id === event.toolCallId
-                      ? { ...tool, status: event.ok ? "done" : "error", output: event.output, durationMs: event.durationMs }
-                      : tool,
-                  ),
-                }
-              : prev,
-          );
+          setLive((prev) => {
+            if (!prev) return prev;
+            const patch = (tool: ToolCallPart): ToolCallPart =>
+              tool.id === event.toolCallId
+                ? { ...tool, status: event.ok ? "done" : "error", output: event.output, durationMs: event.durationMs }
+                : tool;
+            return {
+              ...prev,
+              tools: prev.tools.map(patch),
+              parts: prev.parts.map((part) => (part.type === "tool" ? patch(part) : part)),
+            };
+          });
           break;
         case "memory.write":
           setLive((prev) => (prev ? { ...prev, wroteMemory: true } : prev));
@@ -456,16 +629,21 @@ export function Chat() {
           createdAt: new Date().toISOString(),
         };
         setMessages((prev) => [...prev, optimistic]);
-        setLive({ text: "", tools: [], memories: [], wroteMemory: false });
+        setLive({ text: "", parts: [], tools: [], memories: [], wroteMemory: false });
 
         const controller = new AbortController();
         abortRef.current = controller;
 
-        await streamChat(sid, content, {
-          onEvent: handleEvent,
-          onError: (msg) => toast.error(msg),
-          signal: controller.signal,
-        });
+        await streamChat(
+          sid,
+          content,
+          {
+            onEvent: handleEvent,
+            onError: (msg) => toast.error(msg),
+            signal: controller.signal,
+          },
+          skillKey || null,
+        );
       } catch (err) {
         toast.error((err as Error).message);
       } finally {
@@ -485,8 +663,49 @@ export function Chat() {
         if (created) setTimeout(() => textareaRef.current?.focus(), 60);
       }
     },
-    [input, sending, user, id, navigate, handleEvent, toast, loadSessions],
+    [input, sending, user, id, navigate, handleEvent, toast, loadSessions, skillKey],
   );
+
+  const regenerate = useCallback(async () => {
+    if (!id || sending) return;
+    setSending(true);
+    setLive({ text: "", parts: [], tools: [], memories: [], wroteMemory: false });
+    // 立即移除旧回答，避免与新的流式内容并存
+    setMessages((prev) => {
+      let idx = -1;
+      for (let i = prev.length - 1; i >= 0; i--) {
+        if (prev[i].role === "assistant") {
+          idx = i;
+          break;
+        }
+      }
+      return idx >= 0 ? prev.slice(0, idx) : prev;
+    });
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+    try {
+      await streamRegenerate(id, {
+        onEvent: handleEvent,
+        onError: (msg) => toast.error(msg),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      abortRef.current = null;
+      try {
+        const data = await api<{ session: Session; messages: Message[] }>(`/sessions/${id}`);
+        setMessages(data.messages);
+        setSession(data.session);
+      } catch {
+        /* ignore */
+      }
+      setLive(null);
+      setSending(false);
+      void loadSessions();
+    }
+  }, [id, sending, handleEvent, toast, loadSessions]);
 
   const stop = () => {
     abortRef.current?.abort();
@@ -513,10 +732,7 @@ export function Chat() {
         sessionId: id ?? "",
         role: "assistant",
         content: live.text,
-        parts: [
-          ...(live.text ? [{ type: "text" as const, text: live.text }] : []),
-          ...live.tools,
-        ],
+        parts: live.parts,
         createdAt: new Date().toISOString(),
       }
     : null;
@@ -539,10 +755,10 @@ export function Chat() {
 
       {/* 对话区 */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-line px-3 sm:h-14 sm:px-4">
+        <div className="safe-top flex h-12 shrink-0 items-center justify-between gap-2 border-b border-line px-3 sm:h-14 sm:px-4">
           <div className="flex min-w-0 items-center gap-1.5">
             {id && (
-              <button className="icon-btn lg:hidden" onClick={() => navigate("/chat")}>
+              <button className="icon-btn lg:hidden" onClick={() => navigate("/chat")} aria-label={t("chat.newChat")}>
                 <ChevronLeft size={18} />
               </button>
             )}
@@ -593,8 +809,14 @@ export function Chat() {
             )}
 
             <div className="space-y-5">
-              {messages.map((m) => (
-                <MessageRow key={m.id} message={m} />
+              {messages.map((m, i) => (
+                <MessageRow
+                  key={m.id}
+                  message={m}
+                  onRegenerate={
+                    m.role === "assistant" && i === messages.length - 1 && !sending ? regenerate : undefined
+                  }
+                />
               ))}
 
               {live && (
@@ -660,7 +882,12 @@ export function Chat() {
                 <div className="flex items-center gap-1.5">
                   <span className="hidden text-[10.5px] text-faint sm:inline">{t("chat.send")} · Enter</span>
                   {sending ? (
-                    <button onClick={stop} className="flex h-8 w-8 items-center justify-center rounded-xl bg-elevated text-muted transition hover:text-danger">
+                    <button
+                      onClick={stop}
+                      className="flex h-8 w-8 items-center justify-center rounded-xl bg-elevated text-muted transition hover:text-danger"
+                      title={t("chat.stop")}
+                      aria-label={t("chat.stop")}
+                    >
                       <Square size={13} fill="currentColor" />
                     </button>
                   ) : (

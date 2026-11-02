@@ -170,3 +170,17 @@ export function slugify(input: string): string {
     .replace(/^-+|-+$/g, "");
   return base.slice(0, 40) || "item";
 }
+
+/**
+ * 从首条提问推导会话标题。
+ *
+ * 去掉常见的口语前缀与结尾标点，保留能表达主题的部分；
+ * 超长截断并补省略号。纯规则实现，无模型调用，可离线工作。
+ */
+export function deriveTitle(input: string, max = 22): string {
+  let text = input.replace(/\s+/g, " ").trim();
+  text = text.replace(/^(请|麻烦|帮我|帮忙|能否|可以|我想|我需要|给我|帮忙看下|看一下)[，,、\s]*/u, "");
+  text = text.replace(/[。！？!?；;，,、\s]+$/u, "");
+  if (!text) text = input.trim();
+  return text.length > max ? `${text.slice(0, max)}…` : text;
+}

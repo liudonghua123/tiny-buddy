@@ -3,7 +3,7 @@ import cors from "cors";
 import fs from "node:fs";
 import path from "node:path";
 import { env } from "./env";
-import { migrate } from "./db";
+import { db, migrate } from "./db";
 import { seedDatabase } from "./db/seed";
 import { HttpError, authenticateMcp } from "./lib/http";
 import { authRouter } from "./routes/auth";
@@ -18,7 +18,7 @@ import { apiKeysRouter } from "./routes/apiKeys";
 import { rolesRouter, usersRouter } from "./routes/users";
 import { adminRouter, metaRouter } from "./routes/admin";
 import { handleMcpRequest } from "./services/mcpServer";
-import { startScheduler } from "./services/scheduler";
+import { startScheduler, schedulerRunning } from "./services/scheduler";
 import { providerInfo } from "./services/agent";
 
 migrate();
@@ -31,7 +31,31 @@ app.use(cors());
 app.use(express.json({ limit: "8mb" }));
 
 app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, service: "tiny-buddy", version: "0.1.0", provider: providerInfo(), time: new Date().toISOString() });
+  const started = Date.now();
+  let dbOk = true;
+  let dbError: string | null = null;
+  try {
+    db.prepare("SELECT 1").get();
+  } catch (err) {
+    dbOk = false;
+    dbError = (err as Error).message;
+  }
+
+  const checks = {
+    db: { ok: dbOk, latencyMs: Date.now() - started, ...(dbError ? { error: dbError } : {}) },
+    scheduler: { ok: true, running: schedulerRunning() },
+  };
+  const ok = dbOk;
+
+  res.status(ok ? 200 : 503).json({
+    ok,
+    service: "tiny-buddy",
+    version: "0.1.0",
+    provider: providerInfo(),
+    uptimeSec: Math.round(process.uptime()),
+    checks,
+    time: new Date().toISOString(),
+  });
 });
 
 /* ------------------------- 平台级 MCP 服务端点 ------------------------- */

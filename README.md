@@ -7,7 +7,7 @@
 
 **一个可以直接跑起来的「AI 同事」平台。** TypeScript 全栈 B/S 架构，自带记忆、技能、知识库、MCP 双向通道与定时任务，权限体系基于 RBAC，并且能把平台能力以标准 MCP 服务对外开放。
 
-[English](./README.en.md) · [文档索引](./docs/README.md) · [架构](./docs/ARCHITECTURE.md) · [API](./docs/API.md) · [MCP](./docs/MCP.md) · [部署](./docs/DEPLOYMENT.md)
+[English](./README.en.md) · [变更记录](./CHANGELOG.md) · [文档索引](./docs/README.md) · [架构](./docs/ARCHITECTURE.md) · [API](./docs/API.md) · [MCP](./docs/MCP.md) · [部署](./docs/DEPLOYMENT.md)
 
 仓库：<https://github.com/liudonghua123/tiny-buddy> · 在线演示：<https://peak-enrolled-kingdom-winston.trycloudflare.com>
 
@@ -55,7 +55,7 @@ TinyBuddy 把 AI 当成一个**团队成员**来建模：
 
 | 模块 | 能力 |
 | --- | --- |
-| **对话 Agent** | SSE 流式输出、多步工具调用、记忆召回、技能激活、随时中断、会话历史、Markdown 渲染 |
+| **对话 Agent** | SSE 流式输出、多步工具调用、记忆召回、技能激活、随时中断、重新生成、消息复制、会话搜索与按日分组、代码块复制、Markdown 渲染 |
 | **记忆 Memory** | 5 类记忆（事实 / 偏好 / 事件 / 流程 / 实体）；写入自动去重；混合检索打分；手动增删改 + 召回测试台 |
 | **技能 Skill** | 声明式能力包（指令 + 触发词 + 参考资料 + 所需工具）；**渐进式披露**，只注入被激活技能的指令 |
 | **知识库 Knowledge** | 多知识库、Markdown 章节级分块、词法 + 向量混合检索、命中片段带文档名与得分 |

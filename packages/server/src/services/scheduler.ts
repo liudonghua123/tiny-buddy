@@ -180,6 +180,11 @@ export function startScheduler(): void {
   console.log("[scheduler] started (30s tick)");
 }
 
+/** 调度器是否在运行（健康检查用） */
+export function schedulerRunning(): boolean {
+  return timer !== null;
+}
+
 export function stopScheduler(): void {
   if (timer) clearInterval(timer);
   timer = null;

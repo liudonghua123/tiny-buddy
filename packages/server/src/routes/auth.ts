@@ -5,6 +5,7 @@ import { db, newId, now } from "../db";
 import { findUserByEmail, hashPassword, loadUser, signToken, verifyPassword } from "../lib/auth";
 import { asyncHandler, audit, HttpError, requireAuth } from "../lib/http";
 import { parseBody } from "../lib/validate";
+import { rateLimit } from "../lib/rateLimit";
 import { env } from "../env";
 import { seedUserWorkspace } from "../db/seed";
 
@@ -19,6 +20,14 @@ function publicUser(userId: string): User {
 authRouter.post(
   "/login",
   asyncHandler(async (req, res) => {
+    // 同一 IP 每分钟最多 10 次登录尝试，缓解密码爆破
+    const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || "unknown";
+    const limit = rateLimit(`login:${ip}`, 10, 60_000);
+    if (!limit.ok) {
+      res.setHeader("Retry-After", Math.ceil(limit.retryAfterMs / 1000));
+      throw new HttpError(429, "登录尝试过于频繁，请稍后再试", "rate_limited");
+    }
+
     const { email, password } = parseBody(
       z.object({ email: z.string().email(), password: z.string().min(1) }),
       req,

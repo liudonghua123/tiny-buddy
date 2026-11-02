@@ -350,6 +350,8 @@ export function Layout() {
   const { pathname } = useLocation();
   const nav = useNavList();
   const { t } = useI18n();
+  // 对话页自带 header（返回 / 会话标题 / 会话操作），移动端不再叠加全局 header
+  const hideMobileHeader = pathname.startsWith("/chat");
 
   useEffect(() => {
     setMenuOpen(false);
@@ -359,7 +361,7 @@ export function Layout() {
     <div className="flex h-[100dvh] overflow-hidden bg-bg">
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
-        <MobileHeader onOpenMenu={() => setMenuOpen(true)} />
+        {!hideMobileHeader && <MobileHeader onOpenMenu={() => setMenuOpen(true)} />}
         <main className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
           <Outlet />
         </main>

@@ -204,8 +204,10 @@ export function McpPage() {
 
         {tab === "connections" && (
           <>
-            <div className="mb-4 flex items-center justify-between">
-              <p className="text-[11.5px] text-faint">Streamable HTTP · SSE</p>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <p className="text-[11.5px] leading-relaxed text-faint">
+                {servers.length > 0 ? `${servers.length} · ${t("mcp.transportHint")}` : t("mcp.transportHint")}
+              </p>
               {can("mcp:write") && (
                 <button className="btn-primary" onClick={() => setModal(true)}>
                   <Plus size={15} /> {t("mcp.addServer")}
