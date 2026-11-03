@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowUpRight, Clock3, Eye, Link2, Lock, Moon, Sparkles, Sun, UserRound } from "lucide-react";
+import { ArrowUpRight, CalendarClock, Clock3, Eye, Lock, Moon, Sparkles, Sun, UserRound } from "lucide-react";
 import type { Message, SharedSession } from "@tiny-buddy/shared";
 import { api, ApiError } from "../lib/api";
 import { useI18n } from "../lib/i18n";
@@ -107,7 +107,7 @@ export function SharedPage() {
                   <Clock3 size={12} /> {new Date(data.createdAt).toLocaleString()}
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <Link2 size={12} />
+                  <CalendarClock size={12} />
                   {data.expiresAt ? `${t("share.expires")} ${new Date(data.expiresAt).toLocaleDateString()}` : t("share.forever")}
                 </span>
               </div>
