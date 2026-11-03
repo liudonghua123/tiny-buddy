@@ -9,6 +9,7 @@ import { knowledgeStats } from "../services/knowledge";
 import { mcpStats } from "../services/mcp";
 import { skillStats } from "../services/skills";
 import { memoryStats } from "../services/memory";
+import { env } from "../env";
 
 export const metaRouter = Router();
 metaRouter.use(requireAuth);
@@ -21,7 +22,7 @@ metaRouter.get(
       provider: providerInfo(),
       permissions: ALL_PERMISSIONS,
       roles: ROLE_PRESETS,
-      version: "0.1.0",
+      version: env.version,
     });
   }),
 );

@@ -340,22 +340,31 @@ function seedConversations(userId: string): void {
   const count = (db.prepare(`SELECT COUNT(*) AS n FROM sessions WHERE user_id = ?`).get(userId) as { n: number }).n;
   if (count > 0) return;
 
-  const mk = (title: string, skillKey: string | null, messages: { role: string; content: string; parts?: unknown[] }[]) => {
+  const nowMs = Date.now();
+  const mk = (
+    title: string,
+    skillKey: string | null,
+    messages: { role: string; content: string; parts?: unknown[] }[],
+    daysAgo = 0,
+    hoursAgo = 0,
+  ) => {
     const sid = newId("ses");
-    const ts = now();
+    const base = nowMs - daysAgo * 86_400_000 - hoursAgo * 3_600_000;
+    const createdAt = new Date(base).toISOString();
+    const updatedAt = new Date(base + (messages.length - 1) * 45_000).toISOString();
     db.prepare(
       `INSERT INTO sessions (id, user_id, title, agent_key, skill_key, created_at, updated_at) VALUES (?, ?, ?, 'buddy', ?, ?, ?)`,
-    ).run(sid, userId, title, skillKey, ts, ts);
-    for (const m of messages) {
+    ).run(sid, userId, title, skillKey, createdAt, updatedAt);
+    messages.forEach((m, i) => {
       db.prepare(`INSERT INTO messages (id, session_id, role, content, parts, created_at) VALUES (?, ?, ?, ?, ?, ?)`).run(
         newId("msg"),
         sid,
         m.role,
         m.content,
         JSON.stringify(m.parts ?? [{ type: "text", text: m.content }]),
-        ts,
+        new Date(base + i * 45_000).toISOString(),
       );
-    }
+    });
   };
 
   mk("欢迎使用 TinyBuddy", null, [
@@ -365,7 +374,7 @@ function seedConversations(userId: string): void {
       content:
         "我是 TinyBuddy，你的团队 AI 同事。简单说，我能做四件事：\n\n1. **记住**：你的偏好、团队规则、历史决策，写入长期记忆并可检索；\n2. **查**：在团队知识库里做混合检索，回答内部流程与产品细节；\n3. **做**：调用技能（调研、写作、代码审查…）与 MCP 工具完成实际任务；\n4. **按时做**：用 cron 定时任务，每天/每周自动产出简报。\n\n试试对我说「记住：我偏好中文、结论先行的回答」，然后去「记忆」页面看看它被存到了哪里。",
     },
-  ]);
+  ], 5);
 
   mk("如何接入外部 MCP 工具", null, [
     { role: "user", content: "我想把公司内部的工单系统接进来，怎么弄？" },
@@ -374,7 +383,62 @@ function seedConversations(userId: string): void {
       content:
         "两步：\n\n1. 在「MCP」页面新增一个连接，填入工单系统的 MCP 端点 URL（支持 Streamable HTTP 与 SSE），如果需要鉴权就在 Headers 里加 `Authorization`。保存后会立即拉取工具清单。\n2. 连接成功后，工具会以 `mcp_<服务名>__<工具名>` 的形式出现在 Agent 的工具列表里，对话时会被自动调用。\n\n反过来，如果你希望别的客户端（比如 Claude Desktop）调用 TinyBuddy 的能力，可以在「MCP 服务」标签页生成 API Key，端点就是 `POST /api/mcp`。",
     },
-  ]);
+  ], 3);
+
+  mk("在知识库中查一下发布流程", null, [
+    { role: "user", content: "在知识库中查一下发布流程" },
+    {
+      role: "assistant",
+      content:
+        "我先检索一下知识库。\n\n> [1] 《团队协作规范.md》（团队手册，相关度 0.246）\n> ## 发布\n> - 每周四下午发布，发布前 24 小时冻结非紧急合并。\n> - 回滚预案必须写在发布单里。\n\n## 发布\n\n- **窗口**：每周四 14:00–16:00，避开月末与销售冲刺周。\n- **冻结**：发布前 24 小时只允许紧急修复，需在发布单注明原因。\n- **回滚**：任何变更都要写清回滚步骤与验证方式，回滚人默认是当次发布的值班同学。\n\n需要我把这份流程整理成发布检查清单吗？",
+      parts: [
+        { type: "text", text: "我先检索一下知识库。" },
+        {
+          type: "tool",
+          id: "call_seed_kb",
+          name: "knowledge_search",
+          title: "知识库检索",
+          input: { query: "发布流程", limit: 3 },
+          output:
+            "[1] 《团队协作规范.md》（团队手册，相关度 0.246）\n## 发布\n- 每周四下午发布，发布前 24 小时冻结非紧急合并。\n- 回滚预案必须写在发布单里。",
+          status: "done",
+          durationMs: 3,
+          source: "platform",
+        },
+        {
+          type: "text",
+          text: "## 发布\n\n- **窗口**：每周四 14:00–16:00，避开月末与销售冲刺周。\n- **冻结**：发布前 24 小时只允许紧急修复，需在发布单注明原因。\n- **回滚**：任何变更都要写清回滚步骤与验证方式，回滚人默认是当次发布的值班同学。\n\n需要我把这份流程整理成发布检查清单吗？",
+        },
+      ],
+    },
+  ], 1);
+
+  mk("帮我总结一下发布流程", null, [
+    { role: "user", content: "帮我总结一下发布流程的要点" },
+    {
+      role: "assistant",
+      content:
+        "## 发布流程要点\n\n1. **窗口**：每周四 14:00–16:00，避开月末与销售冲刺周。\n2. **冻结**：发布前 24 小时只允许紧急修复，且要在发布单注明原因。\n3. **回滚**：每个变更都要写清回滚步骤与验证方式，回滚人默认是当次值班同学。\n4. **复盘**：发布后观察 30 分钟错误率与 P95 延迟，异常立即回滚。\n\n> 需要我按这份流程生成发布前的检查清单吗？",
+    },
+  ], 0, 4);
+
+  mk("Look up the release process", null, [
+    { role: "user", content: "Look up the release process in the knowledge base" },
+    {
+      role: "assistant",
+      content:
+        "Here is what the team handbook says about releases.\n\n## Release process\n\n- **Window** — Thursdays 14:00–16:00, avoiding month-end and sales sprints.\n- **Freeze** — only emergency fixes in the 24 hours before a release; note the reason on the release ticket.\n- **Rollback** — every change ships with rollback steps and a verification plan; the on-call engineer owns the rollback.\n- **Review** — watch error rate and P95 latency for 30 minutes after release.\n\nWant me to turn this into a pre-release checklist?",
+    },
+  ], 0, 0.8);
+
+  mk("写一段产品介绍", "writing", [
+    { role: "user", content: "写一段产品介绍，面向团队负责人" },
+    {
+      role: "assistant",
+      content:
+        "**TinyBuddy：把 AI 变成团队里真正干活的那个人。**\n\n大多数 AI 助手停在对话框里：记不住偏好，够不到资料，也接不进系统。TinyBuddy 把 AI 当作团队成员来建模——它有**长期记忆**，能记住每个人的习惯与团队规范；有**团队知识库**，回答问题会带上出处；有**声明式技能**，把「怎么做一件事」沉淀成可复用的能力包；还能通过 **MCP** 连接你已有的工具，并把平台能力反向开放给 Claude Desktop、Cursor 等客户端。\n\n需要时，它还会按 cron 定时自主完成任务。对团队负责人来说，这意味着少一次重复解释、少一次手工汇总，多一个随时在线的同事。",
+    },
+  ], 0, 1.5);
 }
 
 function seedSchedule(userId: string): void {
@@ -393,6 +457,55 @@ function seedSchedule(userId: string): void {
     userId,
     now(),
   );
+}
+
+/** 演示用运行历史：让用量面板在全新安装后就有可看的趋势 */
+function seedRuns(ownerId: string): void {
+  const existing = (db.prepare(`SELECT COUNT(*) AS n FROM runs`).get() as { n: number }).n;
+  if (existing > 0) return;
+
+  const prompts = [
+    "在知识库中查一下发布流程",
+    "帮我总结一下这周的发布计划",
+    "把这段会议纪要整理成待办",
+    "写一段 MCP 服务端的产品介绍",
+    "根据团队规范做一次代码审查",
+    "生成本周的周报草稿",
+  ];
+  const kinds = ["chat", "chat", "chat", "chat", "schedule", "skill", "mcp"];
+  const insert = db.prepare(
+    `INSERT INTO runs (id, kind, ref_id, user_id, status, input, output, steps, tool_calls, usage, error, started_at, finished_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  );
+  const nowMs = Date.now();
+
+  for (let d = 13; d >= 0; d--) {
+    const weekday = new Date(nowMs - d * 86_400_000).getDay();
+    if (weekday === 0 && d !== 0) continue;
+    const count = d === 0 ? 4 : 1 + ((d * 3) % 3);
+    for (let i = 0; i < count; i++) {
+      const started = new Date(nowMs - d * 86_400_000 - (i + 1) * 47 * 60_000);
+      const failed = (d * 5 + i * 7) % 13 === 0;
+      const tools = (d + i) % 4;
+      const tokens = 320 + ((d * 131 + i * 67) % 1200);
+      const promptTokens = Math.round(tokens * 0.72);
+      insert.run(
+        newId("run"),
+        kinds[(d + i) % kinds.length],
+        null,
+        ownerId,
+        failed ? "failed" : "success",
+        prompts[(d + i) % prompts.length],
+        failed ? "" : "已结合知识库与历史记忆整理出结果，包含结论、依据与下一步建议。",
+        1 + ((d + i) % 3),
+        tools,
+        JSON.stringify({ promptTokens, completionTokens: tokens - promptTokens, totalTokens: tokens }),
+        failed ? "模型调用超时" : null,
+        started.toISOString(),
+        new Date(started.getTime() + 900 + ((d * 97 + i * 53) % 2200)).toISOString(),
+      );
+    }
+  }
 }
 
 /** 新注册用户的初始工作区 */
@@ -440,4 +553,5 @@ export function seedDatabase(): void {
   seedMemories(ownerId);
   seedConversations(ownerId);
   seedSchedule(ownerId);
+  seedRuns(ownerId);
 }

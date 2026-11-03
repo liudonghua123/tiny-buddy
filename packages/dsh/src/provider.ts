@@ -149,6 +149,16 @@ export class OpenAICompatProvider implements LlmProvider {
   }
 }
 
+/** 把附件正文压缩成一段引用，模拟“已经读过附件”的效果 */
+function attachmentNote(blocks: { name: string; body: string }[], zh: boolean): string {
+  if (!blocks.length) return "";
+  const names = blocks.map((b) => b.name).join(zh ? "、" : ", ");
+  const excerpt = blocks[0].body.trim().slice(0, 220).replace(/\n/g, "\n> ");
+  return zh
+    ? `已读取附件：${names}。\n\n> ${excerpt}\n\n`
+    : `Read attachment${blocks.length > 1 ? "s" : ""}: ${names}.\n\n> ${excerpt}\n\n`;
+}
+
 /**
  * 离线 Mock Provider
  * 未配置 API Key 时启用：可完整演示流式输出、工具调用、记忆召回等链路，
@@ -161,8 +171,16 @@ export class MockProvider implements LlmProvider {
 
   async *stream(req: ModelRequest, signal: AbortSignal): AsyncIterable<ProviderEvent> {
     const lastUser = [...req.messages].reverse().find((m) => m.role === "user")?.content ?? "";
+    // 附件用 <attachment> 包裹，演示模型只取正文与文件名，避免把标记原样复述出来
+    const attachmentBlocks = [...lastUser.matchAll(/<attachment name="([^"]+)" size="\d+">\n([\s\S]*?)\n<\/attachment>/g)].map(
+      (m) => ({ name: m[1], body: m[2] }),
+    );
+    const attachmentNames = attachmentBlocks.map((a) => a.name);
+    const userText =
+      lastUser.replace(/<attachment[\s\S]*?<\/attachment>/g, "").trim() ||
+      (attachmentBlocks.length ? (attachmentNames.length ? attachmentNames.join("、") : "附件") : "");
     const lastMsg = req.messages[req.messages.length - 1];
-    const zh = /[\u4e00-\u9fa5]/.test(lastUser);
+    const zh = /[\u4e00-\u9fa5]/.test(userText);
     const toolNames = new Set(req.tools.map((t) => t.function.name));
     const hasToolResult = lastMsg?.role === "tool";
     const toolResult = hasToolResult ? lastMsg.content : "";
@@ -205,8 +223,8 @@ export class MockProvider implements LlmProvider {
     }
 
     // 记忆写入意图
-    if ((/记住|记一下|帮我记|remember/i.test(lastUser)) && toolNames.has("memory_write")) {
-      const content = lastUser.replace(/^(请|帮我|帮忙)?\s*(记住|记一下|remember)[：:，,]?\s*/i, "").trim() || lastUser;
+    if ((/记住|记一下|帮我记|remember/i.test(userText)) && toolNames.has("memory_write")) {
+      const content = userText.replace(/^(请|帮我|帮忙)?\s*(记住|记一下|remember)[：:，,]?\s*/i, "").trim() || userText;
       yield* say(zh ? "好的，我把这条信息存进长期记忆。" : "Sure — saving that to long-term memory.", 10);
       yield {
         type: "tool_call",
@@ -220,20 +238,20 @@ export class MockProvider implements LlmProvider {
     }
 
     // 知识检索意图
-    if ((/知识库|文档|检索|搜索|资料|search|knowledge|docs?/i.test(lastUser)) && toolNames.has("knowledge_search")) {
+    if ((/知识库|文档|检索|搜索|资料|search|knowledge|docs?/i.test(userText)) && toolNames.has("knowledge_search")) {
       yield* say(zh ? "我先检索一下知识库。" : "Let me search the knowledge base first.", 10);
       yield {
         type: "tool_call",
         id: `call_${Date.now().toString(36)}`,
         name: "knowledge_search",
-        arguments: JSON.stringify({ query: lastUser.slice(0, 200), limit: 3 }),
+        arguments: JSON.stringify({ query: userText.slice(0, 200), limit: 3 }),
       };
       yield { type: "done", finishReason: "tool_calls" };
       return;
     }
 
     // 技能意图
-    if ((/技能|skill/i.test(lastUser)) && toolNames.has("skill_list")) {
+    if ((/技能|skill/i.test(userText)) && toolNames.has("skill_list")) {
       yield* say(zh ? "我看一下当前挂载了哪些技能。" : "Let me check which skills are mounted.", 10);
       yield {
         type: "tool_call",
@@ -246,7 +264,7 @@ export class MockProvider implements LlmProvider {
     }
 
     // 定时任务意图
-    if ((/每天|定时|提醒|schedule|cron|every day/i.test(lastUser)) && toolNames.has("schedule_create")) {
+    if ((/每天|定时|提醒|schedule|cron|every day/i.test(userText)) && toolNames.has("schedule_create")) {
       yield* say(zh ? "我来创建一个定时任务。" : "I'll set up a scheduled task.", 10);
       yield {
         type: "tool_call",
@@ -254,7 +272,7 @@ export class MockProvider implements LlmProvider {
         name: "schedule_create",
         arguments: JSON.stringify({
           name: zh ? "每日简报" : "Daily briefing",
-          prompt: lastUser,
+          prompt: userText,
           cron: "0 9 * * *",
         }),
       };
@@ -262,14 +280,20 @@ export class MockProvider implements LlmProvider {
       return;
     }
 
-    const greeting = /你好|hi|hello|hey/i.test(lastUser) && lastUser.length < 20;
+    const greeting = /你好|hi|hello|hey/i.test(userText) && userText.length < 20;
+    const intro = attachmentNote(attachmentBlocks, zh);
+    const heading = zh ? `关于「${userText.slice(0, 60)}」，我的处理路径是：` : `On “${userText.slice(0, 60)}”, here's the path I'd take:`;
+    const body = zh
+      ? "1. **对齐目标**：确认你要的产出形态（结论 / 清单 / 文档）。\n2. **调用已有上下文**：先看长期记忆和知识库里有没有可复用的信息，避免重复劳动。\n3. **补齐缺口**：缺少外部数据时调用工具（检索、MCP），而不是凭印象作答。\n4. **交付**：给出结论，再说明下一步与风险。"
+      : "1. **Align on the goal** — conclusion, checklist, or document?\n2. **Reuse context** — check long-term memory and the knowledge base before doing new work.\n3. **Fill the gaps** — call tools for fresh data instead of guessing.\n4. **Deliver** — a conclusion, then next steps and risks.";
+    const footnote = zh
+      ? "> 当前是本地演示模型（未配置 `OPENAI_API_KEY`），以上为固定的推理框架而非真实生成；配置后同一套工具调用链路会换成模型输出。"
+      : "> This is the local demo model (no `OPENAI_API_KEY`), so the above is a fixed reasoning frame rather than a generated answer. Configure a key and the same tool-calling pipeline switches to real model output.";
     const text = greeting
       ? zh
         ? "你好，我是 TinyBuddy。我可以记住你的偏好、检索知识库、调用技能和定时任务，也能通过 MCP 连接外部工具。\n\n试试对我说「记住我偏好简洁的中文回答」。"
         : "Hi, I'm TinyBuddy. I can remember your preferences, search your knowledge, run skills and schedules, and connect external tools over MCP.\n\nTry saying: “Remember that I prefer concise answers.”"
-      : zh
-        ? `关于「${lastUser.slice(0, 60)}」，我的处理路径是：\n\n1. **对齐目标**：确认你要的产出形态（结论 / 清单 / 文档）。\n2. **调用已有上下文**：先看长期记忆和知识库里有没有可复用的信息，避免重复劳动。\n3. **补齐缺口**：缺少外部数据时调用工具（检索、MCP），而不是凭印象作答。\n4. **交付**：给出结论，再说明下一步与风险。\n\n> 当前是本地演示模型（未配置 \`OPENAI_API_KEY\`），以上为固定的推理框架而非真实生成；配置后同一套工具调用链路会换成模型输出。`
-        : `On “${lastUser.slice(0, 60)}”, here's the path I'd take:\n\n1. **Align on the goal** — conclusion, checklist, or document?\n2. **Reuse context** — check long-term memory and the knowledge base before doing new work.\n3. **Fill the gaps** — call tools for fresh data instead of guessing.\n4. **Deliver** — a conclusion, then next steps and risks.\n\n> This is the local demo model (no \`OPENAI_API_KEY\`), so the above is a fixed reasoning frame rather than a generated answer. Configure a key and the same tool-calling pipeline switches to real model output.`;
+      : `${intro}${heading}\n\n${body}\n\n${footnote}`;
     yield* say(text);
     yield { type: "usage", usage: this.#usage(req, text) };
     yield { type: "done", finishReason: "stop" };

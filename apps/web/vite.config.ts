@@ -19,5 +19,14 @@ export default defineConfig({
   build: {
     outDir: "dist",
     sourcemap: false,
+    // 把体积稳定的第三方依赖拆出来，业务代码更新时浏览器仍可复用缓存
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ["react", "react-dom", "react-router-dom"],
+          markdown: ["react-markdown", "remark-gfm"],
+        },
+      },
+    },
   },
 });

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { DICTIONARIES, type Messages } from "./locales";
 
 export type Locale = "zh" | "en";
@@ -32,13 +32,18 @@ function detectLocale(): Locale {
 
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(detectLocale);
+  // 只有用户显式切换才写入本地偏好；否则登录用户的 locale 就能在首次访问时生效
+  const chosen = useRef(false);
 
   useEffect(() => {
     document.documentElement.lang = locale === "zh" ? "zh-CN" : "en";
-    localStorage.setItem("tb.locale", locale);
+    if (chosen.current) localStorage.setItem("tb.locale", locale);
   }, [locale]);
 
-  const setLocale = useCallback((l: Locale) => setLocaleState(l), []);
+  const setLocale = useCallback((l: Locale) => {
+    chosen.current = true;
+    setLocaleState(l);
+  }, []);
 
   const t = useCallback(
     (key: string, vars?: Record<string, string | number>) => {

@@ -8,6 +8,7 @@ import { SkillsPage } from "./pages/Skills";
 import { KnowledgePage } from "./pages/Knowledge";
 import { McpPage } from "./pages/Mcp";
 import { SchedulesPage } from "./pages/Schedules";
+import { UsagePage } from "./pages/Usage";
 import { MembersPage } from "./pages/Members";
 import { AuditPage } from "./pages/Audit";
 import { SettingsPage } from "./pages/Settings";
@@ -51,7 +52,8 @@ function LocaleSync() {
   useEffect(() => {
     if (!user || applied.current) return;
     applied.current = true;
-    if (user.locale !== locale) setLocale(user.locale);
+    // 本地已经存过偏好就以本地为准；否则用账号里的语言
+    if (!localStorage.getItem("tb.locale") && user.locale !== locale) setLocale(user.locale);
   }, [user, locale, setLocale]);
 
   return null;
@@ -110,6 +112,14 @@ export default function App() {
             element={
               <RequirePermission permission="schedule:read">
                 <SchedulesPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/usage"
+            element={
+              <RequirePermission permission="agent:run">
+                <UsagePage />
               </RequirePermission>
             }
           />

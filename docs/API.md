@@ -81,12 +81,15 @@ POST  /api/auth/change-password  { "currentPassword": "...", "newPassword": "...
 
 | 方法 | 路径 | 权限 | 说明 |
 | --- | --- | --- | --- |
-| GET | `/api/sessions` | `agent:run` | 会话列表（按更新时间倒序） |
+| GET | `/api/sessions` | `agent:run` | 会话列表（置顶优先，其余按更新时间倒序） |
 | POST | `/api/sessions` | `agent:run` | 新建会话 `{ title?, skillKey? }` |
 | GET | `/api/sessions/:id` | `agent:run` | 会话详情（含消息） |
-| PATCH | `/api/sessions/:id` | `agent:run` | 重命名 |
-| DELETE | `/api/sessions/:id` | `agent:run` | 删除（连带消息） |
+| PATCH | `/api/sessions/:id` | `agent:run` | 重命名 / 绑定技能 / 置顶 `{ title?, skillKey?, pinned? }` |
+| DELETE | `/api/sessions/:id` | `agent:run` | 删除（连带消息与该会话的运行记录） |
+| POST | `/api/sessions/bulk-delete` | `agent:run` | 批量删除 `{ ids: string[] }`，最多 100 条 |
 | POST | `/api/sessions/:id/messages` | `agent:run` | **发送消息，返回 SSE 流** |
+| POST | `/api/sessions/:id/regenerate` | `agent:run` | 重新生成最后一条回答（复用原提问） |
+| POST | `/api/sessions/:id/messages/:messageId/retry` | `agent:run` | 编辑提问并重发 `{ content }`，丢弃其后的回答 |
 
 ### 发送消息
 
@@ -330,6 +333,32 @@ POST /api/schedules
 
 ---
 
+## 用量洞察
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| GET | `/api/usage/overview` | `agent:run` | `?days=7\|14\|30&scope=me\|platform`；`scope=platform` 额外需要 `audit:read` |
+
+返回按天补齐的序列（没有数据的日子也会出现，前端可直接画图）：
+
+```json
+{
+  "range": { "days": 7, "from": "2026-10-28T00:00:00.000Z", "to": "2026-11-03T00:00:00.000Z", "scope": "me" },
+  "totals": { "runs": 10, "messages": 40, "sessions": 17, "tokens": 6276, "toolCalls": 13, "successRate": 90, "avgDurationMs": 1200 },
+  "series": [{ "date": "2026-11-03", "runs": 4, "messages": 12, "toolCalls": 3, "tokens": 1682, "failed": 0 }],
+  "byKind": [{ "kind": "chat", "runs": 7, "tokens": 3174 }],
+  "topTools": [{ "name": "knowledge_search", "count": 7, "avgMs": 2 }],
+  "topSkills": [{ "key": "writing", "name": "文档写作", "usage": 1 }],
+  "recent": [
+    { "id": "run_...", "kind": "chat", "status": "success", "input": "根据附件整理发布检查清单", "steps": 2, "toolCalls": 1, "tokens": 505, "durationMs": 1900, "startedAt": "..." }
+  ]
+}
+```
+
+> 日期按**服务器本地时区**切分；`runs.input` 与消息预览都已剥离附件正文。
+
+---
+
 ## API Key
 
 | 方法 | 路径 | 权限 | 说明 |
@@ -368,7 +397,7 @@ POST /api/keys
 | PATCH | `/api/roles/:id` | `role:write` | 修改（内置角色不可改 key） |
 | DELETE | `/api/roles/:id` | `role:write` | 删除（有成员在用则拒绝） |
 
-权限点全量清单见 [`packages/shared/src/rbac.ts`](../packages/shared/src/rbac.ts)，共 21 个。
+权限点全量清单见 [`packages/shared/src/rbac.ts`](../packages/shared/src/rbac.ts)，共 22 个。
 
 ---
 

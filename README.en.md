@@ -9,7 +9,7 @@
 
 [中文文档](./README.md) · [Changelog](./CHANGELOG.md) · [Docs index](./docs/README.md) · [Architecture](./docs/ARCHITECTURE.en.md) · [API](./docs/API.en.md) · [MCP](./docs/MCP.en.md) · [Deployment](./docs/DEPLOYMENT.en.md)
 
-Repo: <https://github.com/liudonghua123/tiny-buddy> · Live demo: <https://peak-enrolled-kingdom-winston.trycloudflare.com>
+Repo: <https://github.com/liudonghua123/tiny-buddy> · Public access: [Cloudflare Tunnel guide](./docs/DEPLOYMENT.en.md#6-cloudflare-tunnel)
 
 ![Login](./docs/screenshots/login.png)
 
@@ -47,7 +47,7 @@ TinyBuddy models the AI as a **team member**:
 | It can't reach our systems | **MCP client** — connect any MCP server, tools auto-injected |
 | Other AIs can't reach it | **MCP server** — expose platform capabilities to Claude Desktop / Cursor |
 | It only reacts | **Schedules** — cron runs a full agent turn as the task owner |
-| I can't give it to colleagues | **RBAC** — 21 permissions, custom roles, scoped API keys, full audit trail |
+| I can't give it to colleagues | **RBAC** — 22 permissions, custom roles, scoped API keys, full audit trail |
 
 ---
 
@@ -55,15 +55,15 @@ TinyBuddy models the AI as a **team member**:
 
 | Module | Capability |
 | --- | --- |
-| **Chat agent** | SSE streaming, multi-step tool calls, memory recall, skill activation, interrupt, regenerate, message copy, session search and day grouping, code-block copy, Markdown |
+| **Chat agent** | SSE streaming, multi-step tool calls, memory recall, skill activation, interrupt, regenerate, **edit & resend**, **slash commands**, **text attachments**, session search / pin / bulk delete / Markdown export, code-block copy |
 | **Memory** | 5 kinds (fact / preference / episode / procedure / entity); write-time dedup; hybrid scoring; manual CRUD + recall playground |
 | **Skills** | Declarative packs (instructions + triggers + references + required tools); **progressive disclosure** injects only active skills |
 | **Knowledge** | Multiple bases, heading-aware chunking, lexical + vector hybrid search, hits carry document name and score |
 | **MCP client** | Streamable HTTP and SSE transports, automatic tool discovery |
 | **MCP server** | 10 platform tools over standard MCP, API-key auth, scoped per key |
 | **Schedules** | 5-field cron, timezone aware, run-now, execution history, results land in a dedicated session |
-| **RBAC** | 4 built-in roles + custom roles, 21 permissions, one shared policy module, audit log |
-| **Observability** | Run records (steps / tokens / latency), platform stats, audit trail |
+| **RBAC** | 4 built-in roles + custom roles, 22 permissions, one shared policy module, audit log |
+| **Observability** | Run records (steps / tokens / latency), **usage insights** (daily trend, tool & skill heat, success rate), platform stats, audit trail |
 | **UX** | Mobile-first responsive, EN/中文, light / dark / system theme |
 
 ---
@@ -73,6 +73,18 @@ TinyBuddy models the AI as a **team member**:
 **Chat with tool calls** — the model calls `knowledge_search`, then streams the answer with cited sources.
 
 ![Chat](./docs/screenshots/chat-tool.png)
+
+**Slash commands** — type `/` to create a chat, clear context, pick a skill, export, or insert a prompt template.
+
+![Slash commands](./docs/screenshots/chat-commands.png)
+
+**Text attachments** — drop in `.md` / `.txt` / `.json` files; contents join the context, preview inline, and can be edited and resent.
+
+![Attachments](./docs/screenshots/chat-attachments.png)
+
+**Usage insights** — daily runs, token spend and tool heat; admins can switch to the platform-wide view.
+
+![Usage](./docs/screenshots/usage.png)
 
 **Memory** — filter by kind, edit importance, run recall tests.
 
@@ -106,7 +118,7 @@ TinyBuddy models the AI as a **team member**:
 
 **Mobile**
 
-<img src="./docs/screenshots/mobile-chat.png" width="290" alt="Mobile chat" /> <img src="./docs/screenshots/mobile-knowledge.png" width="290" alt="Mobile knowledge" /> <img src="./docs/screenshots/mobile-more.png" width="290" alt="Mobile menu" />
+<img src="./docs/screenshots/mobile-chat.png" width="270" alt="Mobile chat" /> <img src="./docs/screenshots/mobile-usage.png" width="270" alt="Mobile usage" /> <img src="./docs/screenshots/mobile-knowledge.png" width="270" alt="Mobile knowledge" /> <img src="./docs/screenshots/mobile-more.png" width="270" alt="Mobile menu" />
 
 ---
 
@@ -416,6 +428,7 @@ No. `POST /mcp` and `POST /api/mcp` go to the MCP handler; `GET /mcp` is only tr
 - Vectors are locally hashed — weaker semantic generalization than real embeddings.
 - Schedules use in-process polling; multi-instance deployments need distributed scheduling.
 - The MCP server supports API keys / JWT only; no OAuth flow yet.
+- Chat attachments are text-only (≤32KB each, up to 5); images/PDF must be converted first.
 
 ## Stack
 

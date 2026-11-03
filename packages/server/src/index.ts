@@ -14,6 +14,7 @@ import { skillsRouter } from "./routes/skills";
 import { knowledgeRouter } from "./routes/knowledge";
 import { mcpRouter } from "./routes/mcp";
 import { schedulesRouter } from "./routes/schedules";
+import { usageRouter } from "./routes/usage";
 import { apiKeysRouter } from "./routes/apiKeys";
 import { rolesRouter, usersRouter } from "./routes/users";
 import { adminRouter, metaRouter } from "./routes/admin";
@@ -50,7 +51,7 @@ app.get("/api/health", (_req, res) => {
   res.status(ok ? 200 : 503).json({
     ok,
     service: "tiny-buddy",
-    version: "0.1.0",
+    version: env.version,
     provider: providerInfo(),
     uptimeSec: Math.round(process.uptime()),
     checks,
@@ -84,6 +85,7 @@ app.use("/api/skills", skillsRouter);
 app.use("/api/knowledge", knowledgeRouter);
 app.use("/api/mcp", mcpRouter);
 app.use("/api/schedules", schedulesRouter);
+app.use("/api/usage", usageRouter);
 app.use("/api/keys", apiKeysRouter);
 app.use("/api/users", usersRouter);
 app.use("/api/roles", rolesRouter);

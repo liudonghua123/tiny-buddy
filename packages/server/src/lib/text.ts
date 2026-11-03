@@ -178,9 +178,10 @@ export function slugify(input: string): string {
  * 超长截断并补省略号。纯规则实现，无模型调用，可离线工作。
  */
 export function deriveTitle(input: string, max = 22): string {
-  let text = input.replace(/\s+/g, " ").trim();
+  const hadAttachment = /<attachment/.test(input);
+  let text = input.replace(/<attachment[\s\S]*?<\/attachment>/g, " ").replace(/\s+/g, " ").trim();
   text = text.replace(/^(请|麻烦|帮我|帮忙|能否|可以|我想|我需要|给我|帮忙看下|看一下)[，,、\s]*/u, "");
   text = text.replace(/[。！？!?；;，,、\s]+$/u, "");
-  if (!text) text = input.trim();
+  if (!text) text = hadAttachment ? "附件对话" : input.replace(/\s+/g, " ").trim();
   return text.length > max ? `${text.slice(0, max)}…` : text;
 }

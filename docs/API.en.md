@@ -81,12 +81,15 @@ POST  /api/auth/change-password   { "currentPassword": "...", "newPassword": "..
 
 | Method | Path | Permission | Description |
 | --- | --- | --- | --- |
-| GET | `/api/sessions` | `agent:run` | List sessions, newest first |
+| GET | `/api/sessions` | `agent:run` | List sessions, pinned first then newest |
 | POST | `/api/sessions` | `agent:run` | Create `{ title?, skillKey? }` |
 | GET | `/api/sessions/:id` | `agent:run` | Session detail with messages |
-| PATCH | `/api/sessions/:id` | `agent:run` | Rename |
-| DELETE | `/api/sessions/:id` | `agent:run` | Delete with messages |
+| PATCH | `/api/sessions/:id` | `agent:run` | Rename / bind skill / pin `{ title?, skillKey?, pinned? }` |
+| DELETE | `/api/sessions/:id` | `agent:run` | Delete messages and that session's runs |
+| POST | `/api/sessions/bulk-delete` | `agent:run` | Bulk delete `{ ids: string[] }`, up to 100 |
 | POST | `/api/sessions/:id/messages` | `agent:run` | **Send message, returns SSE** |
+| POST | `/api/sessions/:id/regenerate` | `agent:run` | Regenerate the last answer (reuses the question) |
+| POST | `/api/sessions/:id/messages/:messageId/retry` | `agent:run` | Edit a question and resend `{ content }`, discarding later answers |
 
 ```http
 POST /api/sessions/:id/messages
@@ -306,6 +309,32 @@ POST /api/schedules
 
 ---
 
+## Usage insights
+
+| Method | Path | Permission | Description |
+| --- | --- | --- | --- |
+| GET | `/api/usage/overview` | `agent:run` | `?days=7\|14\|30&scope=me\|platform`; `scope=platform` also requires `audit:read` |
+
+The series is zero-filled per day so charts can render it directly:
+
+```json
+{
+  "range": { "days": 7, "from": "2026-10-28T00:00:00.000Z", "to": "2026-11-03T00:00:00.000Z", "scope": "me" },
+  "totals": { "runs": 10, "messages": 40, "sessions": 17, "tokens": 6276, "toolCalls": 13, "successRate": 90, "avgDurationMs": 1200 },
+  "series": [{ "date": "2026-11-03", "runs": 4, "messages": 12, "toolCalls": 3, "tokens": 1682, "failed": 0 }],
+  "byKind": [{ "kind": "chat", "runs": 7, "tokens": 3174 }],
+  "topTools": [{ "name": "knowledge_search", "count": 7, "avgMs": 2 }],
+  "topSkills": [{ "key": "writing", "name": "文档写作", "usage": 1 }],
+  "recent": [
+    { "id": "run_...", "kind": "chat", "status": "success", "input": "Summarise the attached release checklist", "steps": 2, "toolCalls": 1, "tokens": 505, "durationMs": 1900, "startedAt": "..." }
+  ]
+}
+```
+
+> Days are bucketed in the server's local timezone; attachment bodies are stripped from `runs.input` and previews.
+
+---
+
 ## API keys
 
 | Method | Path | Permission | Description |
@@ -344,7 +373,7 @@ Empty `scopes` inherits the user's full permission set; otherwise effective perm
 | PATCH | `/api/roles/:id` | `role:write` | Update (built-in keys are fixed) |
 | DELETE | `/api/roles/:id` | `role:write` | Delete (rejected while in use) |
 
-The 21 permissions are defined in [`packages/shared/src/rbac.ts`](../packages/shared/src/rbac.ts).
+The 22 permissions are defined in [`packages/shared/src/rbac.ts`](../packages/shared/src/rbac.ts).
 
 ---
 

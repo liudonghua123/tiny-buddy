@@ -90,3 +90,13 @@ export function streamChat(
 export function streamRegenerate(sessionId: string, handlers: StreamHandlers): Promise<void> {
   return streamRequest(`/api/sessions/${sessionId}/regenerate`, {}, handlers);
 }
+
+/** 编辑某条提问并重发：后端更新原文并丢弃其后的回答 */
+export function streamEdit(
+  sessionId: string,
+  messageId: string,
+  content: string,
+  handlers: StreamHandlers,
+): Promise<void> {
+  return streamRequest(`/api/sessions/${sessionId}/messages/${messageId}/retry`, { content }, handlers);
+}

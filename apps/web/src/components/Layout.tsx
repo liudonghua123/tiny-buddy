@@ -7,6 +7,7 @@ import {
   Library,
   Plug,
   CalendarClock,
+  BarChart3,
   Users,
   ScrollText,
   Settings,
@@ -42,6 +43,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: "/knowledge", key: "nav.knowledge", icon: Library, permission: "knowledge:read", group: "primary" },
   { to: "/mcp", key: "nav.mcp", icon: Plug, permission: "mcp:read", group: "primary" },
   { to: "/schedules", key: "nav.schedules", icon: CalendarClock, permission: "schedule:read", group: "primary" },
+  { to: "/usage", key: "nav.usage", icon: BarChart3, permission: "agent:run", group: "primary" },
   { to: "/members", key: "nav.members", icon: Users, permission: "user:read", group: "admin" },
   { to: "/audit", key: "nav.audit", icon: ScrollText, permission: "audit:read", group: "admin" },
   { to: "/settings", key: "nav.settings", icon: Settings, group: "admin" },
@@ -132,7 +134,12 @@ function Sidebar() {
         ))}
       </nav>
 
-      <div className="mt-3">
+      <div className="mt-2 flex items-center justify-between px-1.5">
+        <span className="text-[10px] uppercase tracking-[0.1em] text-faint">{t("settings.appearance")}</span>
+        <IconActions />
+      </div>
+
+      <div className="mt-2">
         <UserCard />
       </div>
     </aside>

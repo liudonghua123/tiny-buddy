@@ -194,8 +194,18 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id, updated_at);
 CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at);
 `;
 
+/** 轻量迁移：仅补列，不重写历史数据，便于老库平滑升级 */
+function ensureColumn(table: string, column: string, ddl: string): void {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  if (!cols.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
+  }
+}
+
 export function migrate(): void {
   db.exec(SCHEMA);
+  ensureColumn("sessions", "pinned", "INTEGER NOT NULL DEFAULT 0");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_sessions_pin ON sessions(user_id, pinned, updated_at)");
 }
 
 export const now = (): string => new Date().toISOString();

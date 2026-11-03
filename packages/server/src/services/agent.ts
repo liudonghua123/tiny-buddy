@@ -328,6 +328,14 @@ export async function* runAgent(opts: RunAgentOptions): AsyncGenerator<AgentEven
       .get(opts.reuseUserId, sessionId) as { id: string; content: string } | undefined;
     if (!existing) throw new Error("待重新生成的消息不存在");
     userMessageId = existing.id;
+    if (existing.content !== input) {
+      // 编辑后重发：同步更新原文，保证历史与展示一致
+      db.prepare(`UPDATE messages SET content = ?, parts = ? WHERE id = ?`).run(
+        input,
+        JSON.stringify([{ type: "text", text: input }]),
+        userMessageId,
+      );
+    }
     // 丢弃这条提问之后的所有回答，让重新生成的结果成为唯一版本
     db.prepare(
       `DELETE FROM messages WHERE session_id = ? AND role = 'assistant' AND rowid > (SELECT rowid FROM messages WHERE id = ?)`,

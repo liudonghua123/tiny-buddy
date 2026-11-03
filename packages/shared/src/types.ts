@@ -33,6 +33,7 @@ export interface Session {
   title: string;
   agentKey: string;
   skillKey?: string | null;
+  pinned?: boolean;
   createdAt: string;
   updatedAt: string;
   messageCount?: number;
@@ -238,4 +239,45 @@ export interface Paginated<T> {
   total: number;
   page: number;
   pageSize: number;
+}
+
+/* ------------------------------- 用量洞察 ------------------------------- */
+
+export interface UsageDay {
+  date: string;
+  runs: number;
+  messages: number;
+  toolCalls: number;
+  tokens: number;
+  failed: number;
+}
+
+export interface UsageRunRow {
+  id: string;
+  kind: string;
+  status: string;
+  input: string;
+  steps: number;
+  toolCalls: number;
+  tokens: number;
+  durationMs: number;
+  startedAt: string;
+}
+
+export interface UsageOverview {
+  range: { days: number; from: string; to: string; scope: "me" | "platform" };
+  totals: {
+    runs: number;
+    messages: number;
+    sessions: number;
+    tokens: number;
+    toolCalls: number;
+    successRate: number;
+    avgDurationMs: number;
+  };
+  series: UsageDay[];
+  byKind: { kind: string; runs: number; tokens: number }[];
+  topTools: { name: string; count: number; avgMs: number }[];
+  topSkills: { key: string; name: string; usage: number }[];
+  recent: UsageRunRow[];
 }

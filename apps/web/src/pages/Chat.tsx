@@ -1,38 +1,49 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import {
   ArrowUp,
+  BarChart3,
   Brain,
-  CalendarClock,
   ChevronDown,
   ChevronLeft,
+  Code2,
+  Download,
+  Eraser,
+  FileText,
   History,
-  Library,
-  Plug,
-  MessageSquarePlus,
-  Save,
+  Languages,
+  Loader2,
+  MoreHorizontal,
+  Paperclip,
+  Pencil,
+  Pin,
+  PinOff,
+  Plus,
   Sparkles,
   Square,
   Trash2,
-  Wrench,
   X,
-  Check,
-  Loader2,
-  Copy,
-  RotateCcw,
-  Search,
 } from "lucide-react";
 import clsx from "clsx";
 import type { AgentEvent, Message, MessagePart, Session, Skill, ToolCallPart } from "@tiny-buddy/shared";
 import { api } from "../lib/api";
-import { streamChat, streamRegenerate } from "../lib/sse";
+import { streamChat, streamEdit, streamRegenerate } from "../lib/sse";
 import { useI18n } from "../lib/i18n";
 import { useAuth } from "../lib/auth";
-import { relativeTime, truncate } from "../lib/format";
+import { formatBytes } from "../lib/format";
 import { useToast } from "../lib/toast";
+import { downloadText, safeFilename } from "../lib/download";
+import {
+  collectAttachments,
+  composeWithAttachments,
+  MAX_FILES,
+  parseAttachments,
+  type Attachment,
+} from "../lib/attachments";
 import { Modal, Spinner } from "../components/ui";
+import { MessageRow, MemoryBadge } from "../components/chat/MessageRow";
+import { SessionList } from "../components/chat/SessionList";
+import { SlashCommands, type SlashItem } from "../components/chat/SlashCommands";
 
 interface LiveState {
   text: string;
@@ -44,406 +55,15 @@ interface LiveState {
   wroteMemory: boolean;
 }
 
-const TOOL_ICONS: Record<string, typeof Wrench> = {
-  memory_search: Brain,
-  memory_write: Save,
-  knowledge_search: Library,
-  skill_list: Sparkles,
-  skill_read: Sparkles,
-  schedule_create: CalendarClock,
-  schedule_list: CalendarClock,
-  mcp_list_tools: Plug,
-  current_time: CalendarClock,
-};
-
-function toolIcon(name: string) {
-  if (name.startsWith("mcp_")) return Plug;
-  return TOOL_ICONS[name] ?? Wrench;
-}
-
-/** 从 React 节点树里取出纯文本，用于复制代码块 */
-function nodeText(node: unknown): string {
-  if (node == null || typeof node === "boolean") return "";
-  if (typeof node === "string" || typeof node === "number") return String(node);
-  if (Array.isArray(node)) return node.map(nodeText).join("");
-  const props = (node as { props?: { children?: unknown } }).props;
-  return props ? nodeText(props.children) : "";
-}
-
-function CodeBlock({ children }: { children?: unknown }) {
-  const { t } = useI18n();
-  const toast = useToast();
-  const code = nodeText(children).replace(/\n$/, "");
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(code);
-      toast.success(t("chat.copied"));
-    } catch {
-      /* 剪贴板不可用时静默 */
-    }
-  };
-
-  return (
-    <div className="group/code relative">
-      <button
-        onClick={copy}
-        className="absolute right-2 top-2 z-10 flex h-6 items-center gap-1 rounded-md border border-line bg-surface/90 px-1.5 text-[10.5px] text-muted opacity-100 backdrop-blur transition hover:text-ink sm:opacity-0 sm:group-hover/code:opacity-100"
-        title={t("chat.copy")}
-        aria-label={t("chat.copy")}
-      >
-        <Copy size={10} /> {t("chat.copy")}
-      </button>
-      <pre>{children as React.ReactNode}</pre>
-    </div>
-  );
-}
-
-function Markdown({ text }: { text: string }) {
-  return (
-    <div className="md-body">
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={{
-          a: (props) => <a {...props} target="_blank" rel="noreferrer" />,
-          pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
-        }}
-      >
-        {text}
-      </ReactMarkdown>
-    </div>
-  );
-}
-
-function ToolCard({ part, defaultOpen }: { part: ToolCallPart; defaultOpen?: boolean }) {
-  const { t } = useI18n();
-  const [open, setOpen] = useState(Boolean(defaultOpen));
-  const Icon = toolIcon(part.name);
-
-  const statusText =
-    part.status === "running" ? t("chat.toolRunning") : part.status === "error" ? t("chat.toolFailed") : t("chat.toolDone");
-
-  return (
-    <div className="my-2 overflow-hidden rounded-xl border border-line bg-surface">
-      <button onClick={() => setOpen(!open)} className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition hover:bg-elevated/60">
-        <span
-          className={clsx(
-            "flex h-6 w-6 shrink-0 items-center justify-center rounded-lg",
-            part.status === "error" ? "bg-danger/10 text-danger" : "bg-brand-soft text-brand",
-          )}
-        >
-          <Icon size={13} />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-1.5">
-            <span className="truncate text-[12.5px] font-medium text-ink">{part.title ?? part.name}</span>
-            {part.source === "mcp" && <span className="chip py-0 text-[9.5px]">MCP</span>}
-          </span>
-          <span className="mt-0.5 flex items-center gap-1.5 text-[10.5px] text-faint">
-            {part.status === "running" ? (
-              <Loader2 size={9} className="animate-spin" />
-            ) : part.status === "error" ? (
-              <X size={9} />
-            ) : (
-              <Check size={9} className="text-ok" />
-            )}
-            {statusText}
-            {part.durationMs !== undefined && <span>· {part.durationMs}ms</span>}
-          </span>
-        </span>
-        <ChevronDown size={14} className={clsx("shrink-0 text-faint transition", open && "rotate-180")} />
-      </button>
-      {open && (
-        <div className="space-y-2 border-t border-line px-3 py-2.5">
-          <div>
-            <div className="mb-1 text-[10px] font-medium uppercase tracking-wide text-faint">input</div>
-            <pre className="scroll-thin max-h-40 overflow-auto rounded-lg bg-elevated px-2.5 py-2 text-[11px] leading-relaxed text-muted">
-              {JSON.stringify(part.input, null, 2)}
-            </pre>
-          </div>
-          {part.output && (
-            <div>
-              <div className="mb-1 text-[10px] font-medium uppercase tracking-wide text-faint">output</div>
-              <pre className="scroll-thin max-h-56 overflow-auto whitespace-pre-wrap rounded-lg bg-elevated px-2.5 py-2 text-[11px] leading-relaxed text-muted">
-                {part.output}
-              </pre>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function MemoryBadge({ count, items }: { count: number; items: { content: string; score?: number }[] }) {
-  const { t } = useI18n();
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="mb-2">
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 rounded-full border border-brand/20 bg-brand-soft/60 px-2.5 py-1 text-[11px] font-medium text-brand-ink transition hover:bg-brand-soft"
-      >
-        <Brain size={11} />
-        {t("chat.memoryRecalled", { n: count })}
-        <ChevronDown size={11} className={clsx("transition", open && "rotate-180")} />
-      </button>
-      {open && (
-        <div className="mt-1.5 space-y-1 rounded-xl border border-line bg-surface p-2">
-          {items.map((m) => (
-            <div key={m.content} className="rounded-lg bg-elevated px-2 py-1.5 text-[11.5px] leading-relaxed text-muted">
-              {m.content}
-              {m.score !== undefined && <span className="ml-1.5 text-[10px] text-faint">{m.score}</span>}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function MessageActions({
-  content,
-  onRegenerate,
-}: {
-  content: string;
-  onRegenerate?: () => void;
-}) {
-  const { t } = useI18n();
-  const toast = useToast();
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(content);
-      toast.success(t("chat.copied"));
-    } catch {
-      toast.error(t("chat.copy"));
-    }
-  };
-
-  return (
-    <div className="mt-1.5 flex items-center gap-0.5 opacity-100 transition sm:opacity-0 sm:group-hover/message:opacity-100 sm:focus-within:opacity-100">
-      <button
-        onClick={copy}
-        className="flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] text-faint transition hover:bg-elevated hover:text-ink"
-        title={t("chat.copy")}
-        aria-label={t("chat.copy")}
-      >
-        <Copy size={11} /> {t("chat.copy")}
-      </button>
-      {onRegenerate && (
-        <button
-          onClick={onRegenerate}
-          className="flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] text-faint transition hover:bg-elevated hover:text-ink"
-          title={t("chat.regenerate")}
-          aria-label={t("chat.regenerate")}
-        >
-          <RotateCcw size={11} /> {t("chat.regenerate")}
-        </button>
-      )}
-    </div>
-  );
-}
-
-function MessageRow({
-  message,
-  streaming,
-  onRegenerate,
-}: {
+interface EditTarget {
   message: Message;
-  streaming?: boolean;
-  onRegenerate?: () => void;
-}) {
-  const { t } = useI18n();
-  const isUser = message.role === "user";
-
-  if (isUser) {
-    return (
-      <div className="group/message flex flex-col items-end">
-        <div className="max-w-[85%] rounded-2xl rounded-br-md bg-brand-soft px-4 py-2.5 text-[14.5px] leading-relaxed text-ink sm:max-w-[75%]">
-          {message.content}
-        </div>
-        {!streaming && <MessageActions content={message.content} />}
-      </div>
-    );
-  }
-
-  const parts = message.parts ?? [];
-  const hasTools = parts.some((p) => p.type === "tool");
-
-  return (
-    <div className="group/message flex gap-2.5 sm:gap-3">
-      <div className="mt-0.5 hidden h-7 w-7 shrink-0 items-center justify-center rounded-[9px] bg-gradient-to-br from-[#8b6dff] to-[#5b3ae0] sm:flex">
-        <Sparkles size={13} className="text-white" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="mb-1 flex items-center gap-2">
-          <span className="text-[12px] font-medium text-ink">TinyBuddy</span>
-          {message.model && <span className="text-[10px] text-faint">{message.model}</span>}
-          {message.usage && (
-            <span className="hidden text-[10px] text-faint sm:inline">
-              · {t("chat.tokens", { n: message.usage.totalTokens })}
-            </span>
-          )}
-        </div>
-
-        {hasTools ? (
-          <div className="space-y-1">
-            {parts.map((part, i) => {
-              if (part.type === "tool") return <ToolCard key={part.id || i} part={part} />;
-              if (part.type === "text")
-                return (
-                  <div key={i} className="pt-1">
-                    <Markdown text={part.text} />
-                  </div>
-                );
-              return null;
-            })}
-          </div>
-        ) : (
-          <div className={clsx(streaming && "caret")}>
-            <Markdown text={message.content} />
-          </div>
-        )}
-
-        {streaming && hasTools && <span className="caret inline-block align-middle" />}
-        {!streaming && <MessageActions content={message.content} onRegenerate={onRegenerate} />}
-      </div>
-    </div>
-  );
+  text: string;
+  files: Attachment[];
 }
 
-/** 按自然日把会话分组，历史更长时仍能快速定位 */
-function groupSessions(sessions: Session[], t: (k: string, p?: Record<string, string | number>) => string) {
-  const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const startOfYesterday = startOfToday - 86_400_000;
-
-  const buckets: { label: string; items: Session[] }[] = [
-    { label: t("chat.groupToday"), items: [] },
-    { label: t("chat.groupYesterday"), items: [] },
-    { label: t("chat.groupEarlier"), items: [] },
-  ];
-
-  for (const s of sessions) {
-    const ts = new Date(s.updatedAt).getTime();
-    if (ts >= startOfToday) buckets[0].items.push(s);
-    else if (ts >= startOfYesterday) buckets[1].items.push(s);
-    else buckets[2].items.push(s);
-  }
-  return buckets.filter((b) => b.items.length > 0);
-}
-
-function SessionList({
-  sessions,
-  activeId,
-  onSelect,
-  onNew,
-  onDelete,
-  loading,
-}: {
-  sessions: Session[];
-  activeId?: string;
-  onSelect: (id: string) => void;
-  onNew: () => void;
-  onDelete: (id: string) => void;
-  loading: boolean;
-}) {
-  const { t } = useI18n();
-  const [query, setQuery] = useState("");
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return sessions;
-    return sessions.filter(
-      (s) => s.title.toLowerCase().includes(q) || (s.preview ?? "").toLowerCase().includes(q),
-    );
-  }, [sessions, query]);
-
-  const groups = useMemo(() => groupSessions(filtered, t), [filtered, t]);
-
-  return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 px-3 py-3">
-        <button onClick={onNew} className="btn-primary h-9 flex-1 text-[12.5px]">
-          <MessageSquarePlus size={14} /> {t("chat.newChat")}
-        </button>
-      </div>
-
-      <div className="px-3 pb-2">
-        <div className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-2 py-1.5">
-          <Search size={12} className="shrink-0 text-faint" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t("chat.searchSessions")}
-            className="w-full bg-transparent text-[12px] text-ink outline-none placeholder:text-faint"
-          />
-          {query && (
-            <button onClick={() => setQuery("")} className="shrink-0 text-faint hover:text-ink" aria-label="clear">
-              <X size={11} />
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div className="scroll-thin flex-1 overflow-y-auto px-2 pb-3">
-        {loading && sessions.length === 0 && (
-          <div className="flex justify-center py-8">
-            <Spinner />
-          </div>
-        )}
-        {!loading && sessions.length === 0 && (
-          <p className="px-2 py-6 text-center text-[12px] text-faint">{t("common.empty")}</p>
-        )}
-        {!loading && sessions.length > 0 && filtered.length === 0 && (
-          <p className="px-2 py-6 text-center text-[12px] text-faint">{t("common.empty")}</p>
-        )}
-
-        {groups.map((group) => (
-          <div key={group.label} className="mb-2">
-            <div className="px-2.5 pb-1 pt-2 text-[10.5px] font-medium uppercase tracking-[0.1em] text-faint">
-              {group.label}
-            </div>
-            {group.items.map((s) => (
-              <div
-                key={s.id}
-                className={clsx(
-                  "group relative mb-0.5 flex cursor-pointer items-start gap-2 rounded-xl px-2.5 py-2 transition",
-                  s.id === activeId ? "bg-brand-soft" : "hover:bg-elevated",
-                )}
-                onClick={() => onSelect(s.id)}
-              >
-                <div className="min-w-0 flex-1">
-                  <div
-                    className={clsx(
-                      "truncate text-[13px] font-medium",
-                      s.id === activeId ? "text-brand-ink" : "text-ink",
-                    )}
-                  >
-                    {s.title}
-                  </div>
-                  <div className="mt-0.5 truncate text-[11px] text-faint">
-                    {s.preview ? truncate(s.preview, 42) : relativeTime(s.updatedAt, t)}
-                  </div>
-                </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDelete(s.id);
-                  }}
-                  className="mt-0.5 hidden h-6 w-6 shrink-0 items-center justify-center rounded-lg text-faint hover:bg-surface hover:text-danger group-hover:flex"
-                  title={t("chat.deleteSession")}
-                  aria-label={t("chat.deleteSession")}
-                >
-                  <Trash2 size={12} />
-                </button>
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
-    </div>
+function sortSessions(list: Session[]): Session[] {
+  return [...list].sort(
+    (a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || b.updatedAt.localeCompare(a.updatedAt),
   );
 }
 
@@ -460,6 +80,8 @@ export function Chat() {
   const [skills, setSkills] = useState<Skill[]>([]);
   const [skillKey, setSkillKey] = useState("");
   const [input, setInput] = useState("");
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [attachBusy, setAttachBusy] = useState(false);
   const [sending, setSending] = useState(false);
   const [live, setLive] = useState<LiveState | null>(null);
   const [loading, setLoading] = useState(false);
@@ -467,10 +89,17 @@ export function Chat() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [skillOpen, setSkillOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Session | null>(null);
+  const [menuSession, setMenuSession] = useState<Session | null>(null);
+  const [renameTarget, setRenameTarget] = useState<Session | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
+  const [slashIndex, setSlashIndex] = useState(0);
+  const [slashDismissed, setSlashDismissed] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const loadSessions = useCallback(async () => {
@@ -484,20 +113,23 @@ export function Chat() {
     }
   }, []);
 
-  const loadSession = useCallback(async (sid: string) => {
-    setLoading(true);
-    try {
-      const data = await api<{ session: Session; messages: Message[] }>(`/sessions/${sid}`);
-      setSession(data.session);
-      setMessages(data.messages);
-      setSkillKey(data.session.skillKey ?? "");
-    } catch {
-      toast.error(t("error.loadFailed"));
-      navigate("/chat", { replace: true });
-    } finally {
-      setLoading(false);
-    }
-  }, [navigate, t, toast]);
+  const loadSession = useCallback(
+    async (sid: string) => {
+      setLoading(true);
+      try {
+        const data = await api<{ session: Session; messages: Message[] }>(`/sessions/${sid}`);
+        setSession(data.session);
+        setMessages(data.messages);
+        setSkillKey(data.session.skillKey ?? "");
+      } catch {
+        toast.error(t("error.loadFailed"));
+        navigate("/chat", { replace: true });
+      } finally {
+        setLoading(false);
+      }
+    },
+    [navigate, t, toast],
+  );
 
   useEffect(() => {
     void loadSessions();
@@ -514,12 +146,13 @@ export function Chat() {
       setMessages([]);
       setLive(null);
       setSkillKey("");
+      setAttachments([]);
     }
   }, [id, loadSession]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages, live?.text, live?.tools.length]);
+  }, [messages, live?.text, live?.parts.length]);
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -596,22 +229,41 @@ export function Chat() {
     [t, toast],
   );
 
+  const reloadCurrent = useCallback(
+    async (sid: string) => {
+      try {
+        const data = await api<{ session: Session; messages: Message[] }>(`/sessions/${sid}`);
+        setMessages(data.messages);
+        setSession(data.session);
+      } catch {
+        /* ignore */
+      }
+      setLive(null);
+      void loadSessions();
+    },
+    [loadSessions],
+  );
+
   const send = useCallback(
     async (raw?: string) => {
-      const content = (raw ?? input).trim();
-      if (!content || sending) return;
+      const typed = (raw ?? input).trim();
+      const files = raw === undefined ? attachments : [];
+      if ((!typed && files.length === 0) || sending || attachBusy || !user) return;
 
-      if (!user) return;
+      const content = composeWithAttachments(typed || t("chat.attachmentOnlyPrompt"), files);
       setSending(true);
       setInput("");
+      if (raw === undefined) setAttachments([]);
+      setSlashDismissed(false);
 
       let sid = id;
       let created = false;
       try {
         if (!sid) {
+          const titleSource = typed || files[0]?.name || t("chat.newChat");
           const data = await api<{ session: Session }>("/sessions", {
             method: "POST",
-            body: { title: content.replace(/\s+/g, " ").slice(0, 24) },
+            body: { title: titleSource.replace(/\s+/g, " ").slice(0, 24) },
           });
           sid = data.session.id;
           created = true;
@@ -648,22 +300,12 @@ export function Chat() {
         toast.error((err as Error).message);
       } finally {
         abortRef.current = null;
-        if (sid) {
-          try {
-            const data = await api<{ session: Session; messages: Message[] }>(`/sessions/${sid}`);
-            setMessages(data.messages);
-            setSession(data.session);
-          } catch {
-            /* ignore */
-          }
-        }
-        setLive(null);
+        if (sid) await reloadCurrent(sid);
         setSending(false);
-        void loadSessions();
         if (created) setTimeout(() => textareaRef.current?.focus(), 60);
       }
     },
-    [input, sending, user, id, navigate, handleEvent, toast, loadSessions, skillKey],
+    [input, attachments, attachBusy, sending, user, id, navigate, handleEvent, toast, reloadCurrent, skillKey, t],
   );
 
   const regenerate = useCallback(async () => {
@@ -694,18 +336,44 @@ export function Chat() {
       toast.error((err as Error).message);
     } finally {
       abortRef.current = null;
-      try {
-        const data = await api<{ session: Session; messages: Message[] }>(`/sessions/${id}`);
-        setMessages(data.messages);
-        setSession(data.session);
-      } catch {
-        /* ignore */
-      }
-      setLive(null);
+      await reloadCurrent(id);
       setSending(false);
-      void loadSessions();
     }
-  }, [id, sending, handleEvent, toast, loadSessions]);
+  }, [id, sending, handleEvent, toast, reloadCurrent]);
+
+  const submitEdit = useCallback(async () => {
+    if (!id || !editTarget || sending) return;
+    const composed = composeWithAttachments(editTarget.text.trim(), editTarget.files);
+    if (!composed.trim()) return;
+
+    const targetId = editTarget.message.id;
+    setEditTarget(null);
+    setSending(true);
+    setLive({ text: "", parts: [], tools: [], memories: [], wroteMemory: false });
+    setMessages((prev) => {
+      const idx = prev.findIndex((m) => m.id === targetId);
+      if (idx < 0) return prev;
+      const next = prev.slice(0, idx + 1);
+      next[idx] = { ...next[idx], content: composed, parts: [{ type: "text", text: composed }] };
+      return next;
+    });
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+    try {
+      await streamEdit(id, targetId, composed, {
+        onEvent: handleEvent,
+        onError: (msg) => toast.error(msg),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      abortRef.current = null;
+      await reloadCurrent(id);
+      setSending(false);
+    }
+  }, [id, editTarget, sending, handleEvent, toast, reloadCurrent]);
 
   const stop = () => {
     abortRef.current?.abort();
@@ -724,7 +392,166 @@ export function Chat() {
     }
   };
 
+  const bulkDelete = async (ids: string[]) => {
+    try {
+      const data = await api<{ deleted: number }>("/sessions/bulk-delete", { method: "POST", body: { ids } });
+      setSessions((prev) => prev.filter((s) => !ids.includes(s.id)));
+      if (id && ids.includes(id)) navigate("/chat", { replace: true });
+      toast.success(t("chat.deletedCount", { n: data.deleted }));
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
+  };
+
+  const togglePin = async (target: Session) => {
+    const next = !target.pinned;
+    setSessions((prev) => sortSessions(prev.map((s) => (s.id === target.id ? { ...s, pinned: next } : s))));
+    setSession((prev) => (prev && prev.id === target.id ? { ...prev, pinned: next } : prev));
+    setMenuSession(null);
+    try {
+      await api(`/sessions/${target.id}`, { method: "PATCH", body: { pinned: next } });
+    } catch (err) {
+      toast.error((err as Error).message);
+      void loadSessions();
+    }
+  };
+
+  const submitRename = async () => {
+    if (!renameTarget) return;
+    const title = renameValue.trim();
+    if (!title) return;
+    try {
+      await api(`/sessions/${renameTarget.id}`, { method: "PATCH", body: { title } });
+      setSessions((prev) => prev.map((s) => (s.id === renameTarget.id ? { ...s, title } : s)));
+      setSession((prev) => (prev && prev.id === renameTarget.id ? { ...prev, title } : prev));
+      setRenameTarget(null);
+      toast.success(t("common.save"));
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
+  };
+
+  const exportSession = async (target: Session) => {
+    setMenuSession(null);
+    try {
+      const data = await api<{ session: Session; messages: Message[] }>(`/sessions/${target.id}`);
+      const lines: string[] = [
+        `# ${data.session.title}`,
+        "",
+        `> ${t("chat.exportedAt")} ${new Date().toLocaleString()}`,
+        "",
+      ];
+      for (const m of data.messages) {
+        const parsed = parseAttachments(m.content);
+        lines.push(m.role === "user" ? `## ${t("chat.you")}` : "## TinyBuddy", "");
+        if (parsed.files.length) {
+          lines.push(...parsed.files.map((f) => `- attachment: ${f.name} (${formatBytes(f.size)})`), "");
+        }
+        if (parsed.text) lines.push(parsed.text, "");
+        const tools = (m.parts ?? []).filter((p): p is ToolCallPart => p.type === "tool");
+        if (tools.length) {
+          lines.push(tools.map((tool) => `\`${tool.name}\` (${tool.status}, ${tool.durationMs ?? 0}ms)`).join(" · "), "");
+        }
+      }
+      downloadText(`${safeFilename(target.title)}.md`, lines.join("\n"));
+      toast.success(t("chat.exported"));
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
+  };
+
+  const addFiles = async (list: FileList | null) => {
+    if (!list?.length) return;
+    setAttachBusy(true);
+    try {
+      const { accepted, rejected } = await collectAttachments([...list], attachments);
+      if (accepted.length) setAttachments((prev) => [...prev, ...accepted].slice(0, MAX_FILES));
+      if (rejected.length) toast.error(t("chat.attachRejected", { n: rejected.length }));
+    } finally {
+      setAttachBusy(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
   const activeSkill = useMemo(() => skills.find((s) => s.key === skillKey), [skills, skillKey]);
+
+  const slashItems: SlashItem[] = useMemo(
+    () => [
+      { key: "new", label: t("chat.cmdNew"), hint: "/new", description: t("chat.cmdNewDesc"), icon: Plus },
+      { key: "clear", label: t("chat.cmdClear"), hint: "/clear", description: t("chat.cmdClearDesc"), icon: Eraser },
+      { key: "skill", label: t("chat.cmdSkill"), hint: "/skill", description: t("chat.cmdSkillDesc"), icon: Sparkles },
+      { key: "export", label: t("chat.cmdExport"), hint: "/export", description: t("chat.cmdExportDesc"), icon: Download },
+      { key: "memory", label: t("chat.cmdMemory"), hint: "/memory", description: t("chat.cmdMemoryDesc"), icon: Brain },
+      { key: "usage", label: t("chat.cmdUsage"), hint: "/usage", description: t("chat.cmdUsageDesc"), icon: BarChart3 },
+      { key: "summary", label: t("chat.cmdSummary"), hint: "/summary", description: t("chat.cmdSummaryDesc"), icon: FileText },
+      { key: "translate", label: t("chat.cmdTranslate"), hint: "/translate", description: t("chat.cmdTranslateDesc"), icon: Languages },
+      { key: "review", label: t("chat.cmdReview"), hint: "/review", description: t("chat.cmdReviewDesc"), icon: Code2 },
+    ],
+    [t],
+  );
+
+  const slashQuery = input.startsWith("/") && !input.includes(" ") ? input.slice(1).toLowerCase() : null;
+  const slashVisible = slashQuery !== null && !slashDismissed && !sending;
+  const slashFiltered = useMemo(
+    () =>
+      slashVisible
+        ? slashItems.filter((item) => item.key.includes(slashQuery!.trim()) || item.label.toLowerCase().includes(slashQuery!.trim()))
+        : [],
+    [slashVisible, slashItems, slashQuery],
+  );
+  const slashActive = Math.min(slashIndex, Math.max(0, slashFiltered.length - 1));
+
+  const applySlash = (item: SlashItem) => {
+    setSlashDismissed(true);
+    setSlashIndex(0);
+    switch (item.key) {
+      case "new":
+        setInput("");
+        navigate("/chat");
+        break;
+      case "clear":
+        setInput("");
+        setAttachments([]);
+        navigate("/chat");
+        toast.info(t("chat.cleared"));
+        break;
+      case "skill":
+        setInput("");
+        setSkillOpen(true);
+        break;
+      case "export":
+        setInput("");
+        if (session) void exportSession(session);
+        else toast.info(t("chat.exportEmpty"));
+        break;
+      case "memory":
+        setInput("");
+        navigate("/memory");
+        break;
+      case "usage":
+        setInput("");
+        navigate("/usage");
+        break;
+      case "summary":
+        setInput(t("chat.cmdSummaryPrompt"));
+        break;
+      case "translate":
+        setInput(t("chat.cmdTranslatePrompt"));
+        break;
+      case "review":
+        setInput(t("chat.cmdReviewPrompt"));
+        break;
+      default:
+        break;
+    }
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (!el) return;
+      el.focus();
+      const len = el.value.length;
+      el.setSelectionRange(len, len);
+    });
+  };
 
   const liveMessage: Message | null = live
     ? {
@@ -738,6 +565,7 @@ export function Chat() {
     : null;
 
   const isEmpty = !loading && messages.length === 0 && !live;
+  const canSend = (input.trim().length > 0 || attachments.length > 0) && !sending && !attachBusy;
 
   return (
     <div className="flex h-full min-h-0">
@@ -749,7 +577,8 @@ export function Chat() {
           loading={sessionsLoading}
           onNew={() => navigate("/chat")}
           onSelect={(sid) => navigate(`/chat/${sid}`)}
-          onDelete={(sid) => setDeleteTarget(sessions.find((s) => s.id === sid) ?? null)}
+          onMenu={(s) => setMenuSession(s)}
+          onBulkDelete={bulkDelete}
         />
       </div>
 
@@ -763,6 +592,7 @@ export function Chat() {
               </button>
             )}
             <button className="flex min-w-0 items-center gap-1.5" onClick={() => setHistoryOpen(true)}>
+              {session?.pinned && <Pin size={12} className="shrink-0 text-brand" fill="currentColor" />}
               <span className="truncate text-[14px] font-medium text-ink">{session?.title ?? t("chat.newChat")}</span>
             </button>
           </div>
@@ -770,21 +600,36 @@ export function Chat() {
             <button className="icon-btn lg:hidden" onClick={() => setHistoryOpen(true)} title={t("chat.history")}>
               <History size={16} />
             </button>
-            {id && (
-              <button
-                className="icon-btn"
-                onClick={() => setDeleteTarget(session)}
-                title={t("chat.deleteSession")}
-              >
-                <Trash2 size={15} />
-              </button>
+            {id && session && (
+              <>
+                <button
+                  className={clsx("icon-btn", session.pinned && "text-brand")}
+                  onClick={() => void togglePin(session)}
+                  title={session.pinned ? t("chat.unpin") : t("chat.pin")}
+                  aria-label={session.pinned ? t("chat.unpin") : t("chat.pin")}
+                >
+                  {session.pinned ? <PinOff size={15} /> : <Pin size={15} />}
+                </button>
+                <button
+                  className="icon-btn"
+                  onClick={() => setMenuSession(session)}
+                  title={t("common.actions")}
+                  aria-label={t("common.actions")}
+                >
+                  <MoreHorizontal size={16} />
+                </button>
+              </>
             )}
           </div>
         </div>
 
         <div ref={scrollRef} className="scroll-thin min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-[760px] px-3 py-4 sm:px-6 sm:py-6">
-            {loading && <div className="flex justify-center py-16"><Spinner size={20} /></div>}
+            {loading && (
+              <div className="flex justify-center py-16">
+                <Spinner size={20} />
+              </div>
+            )}
 
             {isEmpty && (
               <div className="flex flex-col items-center pt-8 sm:pt-16">
@@ -805,6 +650,18 @@ export function Chat() {
                     </button>
                   ))}
                 </div>
+
+                <button
+                  onClick={() => {
+                    setInput("/");
+                    setSlashDismissed(false);
+                    textareaRef.current?.focus();
+                  }}
+                  className="mt-5 flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-[11.5px] text-faint transition hover:border-brand/30 hover:text-muted"
+                >
+                  <span className="rounded bg-elevated px-1 font-mono text-[10px] text-muted">/</span>
+                  {t("chat.commandsHint")}
+                </button>
               </div>
             )}
 
@@ -813,6 +670,14 @@ export function Chat() {
                 <MessageRow
                   key={m.id}
                   message={m}
+                  onEdit={
+                    m.role === "user" && !sending
+                      ? (message) => {
+                          const parsed = parseAttachments(message.content);
+                          setEditTarget({ message, text: parsed.text, files: parsed.files });
+                        }
+                      : undefined
+                  }
                   onRegenerate={
                     m.role === "assistant" && i === messages.length - 1 && !sending ? regenerate : undefined
                   }
@@ -852,11 +717,68 @@ export function Chat() {
         <div className="shrink-0 border-t border-line bg-bg/80 px-3 pb-3 pt-2.5 backdrop-blur sm:px-6 sm:pb-4">
           <div className="mx-auto w-full max-w-[760px]">
             <div className="relative rounded-2xl border border-line bg-surface shadow-soft transition focus-within:border-brand/40 focus-within:ring-4 focus-within:ring-brand/10">
+              {slashVisible && (
+                <SlashCommands
+                  items={slashFiltered}
+                  active={slashActive}
+                  onPick={applySlash}
+                  onHover={setSlashIndex}
+                />
+              )}
+
+              {attachments.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 px-3 pt-2.5">
+                  {attachments.map((f, i) => (
+                    <span
+                      key={`${f.name}-${i}`}
+                      className="flex max-w-[240px] items-center gap-1.5 rounded-lg border border-line bg-elevated px-2 py-1 text-[11px] text-muted"
+                    >
+                      <Paperclip size={10} className="shrink-0 text-brand" />
+                      <span className="truncate">{f.name}</span>
+                      <span className="shrink-0 text-[10px] text-faint">{formatBytes(f.size)}</span>
+                      <button
+                        onClick={() => setAttachments((prev) => prev.filter((_, idx) => idx !== i))}
+                        className="shrink-0 text-faint transition hover:text-danger"
+                        aria-label={t("chat.removeAttachment")}
+                      >
+                        <X size={11} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
               <textarea
                 ref={textareaRef}
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  setSlashIndex(0);
+                  setSlashDismissed(false);
+                }}
                 onKeyDown={(e) => {
+                  if (slashVisible && slashFiltered.length > 0) {
+                    if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      setSlashIndex((slashActive + 1) % slashFiltered.length);
+                      return;
+                    }
+                    if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      setSlashIndex((slashActive - 1 + slashFiltered.length) % slashFiltered.length);
+                      return;
+                    }
+                    if (e.key === "Enter" || e.key === "Tab") {
+                      e.preventDefault();
+                      applySlash(slashFiltered[slashActive]);
+                      return;
+                    }
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      setSlashDismissed(true);
+                      return;
+                    }
+                  }
                   if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                     e.preventDefault();
                     void send();
@@ -866,18 +788,39 @@ export function Chat() {
                 placeholder={t("chat.placeholder")}
                 className="scroll-thin max-h-40 w-full resize-none bg-transparent px-3.5 pb-1 pt-3 text-[14.5px] leading-relaxed text-ink outline-none placeholder:text-faint"
               />
+
               <div className="flex items-center justify-between gap-2 px-2 pb-2">
-                <button
-                  onClick={() => setSkillOpen(true)}
-                  className={clsx(
-                    "flex items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] transition",
-                    activeSkill ? "bg-brand-soft text-brand-ink" : "text-faint hover:bg-elevated hover:text-muted",
-                  )}
-                >
-                  <Sparkles size={12} />
-                  {activeSkill ? activeSkill.name : t("chat.autoSkill")}
-                  <ChevronDown size={10} />
-                </button>
+                <div className="flex min-w-0 items-center gap-1">
+                  <button
+                    onClick={() => setSkillOpen(true)}
+                    className={clsx(
+                      "flex items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] transition",
+                      activeSkill ? "bg-brand-soft text-brand-ink" : "text-faint hover:bg-elevated hover:text-muted",
+                    )}
+                  >
+                    <Sparkles size={12} />
+                    <span className="max-w-[110px] truncate">{activeSkill ? activeSkill.name : t("chat.autoSkill")}</span>
+                    <ChevronDown size={10} />
+                  </button>
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    disabled={sending || attachBusy}
+                    className="flex h-6 w-6 items-center justify-center rounded-lg text-faint transition hover:bg-elevated hover:text-muted disabled:opacity-40"
+                    title={t("chat.attach")}
+                    aria-label={t("chat.attach")}
+                  >
+                    {attachBusy ? <Loader2 size={13} className="animate-spin" /> : <Paperclip size={13} />}
+                  </button>
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    multiple
+                    accept=".md,.markdown,.txt,.json,.csv,.tsv,.log,.yml,.yaml,.toml,.ini,.xml,.html,.css,.js,.jsx,.ts,.tsx,.py,.go,.rs,.java,.sql,.sh,text/*"
+                    className="hidden"
+                    onChange={(e) => void addFiles(e.target.files)}
+                  />
+                  <span className="hidden text-[10px] text-faint sm:inline">/</span>
+                </div>
 
                 <div className="flex items-center gap-1.5">
                   <span className="hidden text-[10.5px] text-faint sm:inline">{t("chat.send")} · Enter</span>
@@ -893,8 +836,9 @@ export function Chat() {
                   ) : (
                     <button
                       onClick={() => void send()}
-                      disabled={!input.trim()}
+                      disabled={!canSend}
                       className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand text-white transition hover:brightness-110 disabled:bg-line disabled:text-faint"
+                      aria-label={t("chat.send")}
                     >
                       <ArrowUp size={15} strokeWidth={2.6} />
                     </button>
@@ -916,7 +860,7 @@ export function Chat() {
           <div className="animate-fade-up absolute inset-y-0 left-0 flex w-[84%] max-w-[320px] flex-col border-r border-line bg-surface">
             <div className="flex items-center justify-between px-3 py-3">
               <span className="text-[14px] font-semibold text-ink">{t("chat.history")}</span>
-              <button className="icon-btn" onClick={() => setHistoryOpen(false)}>
+              <button className="icon-btn" onClick={() => setHistoryOpen(false)} aria-label={t("common.close")}>
                 <X size={16} />
               </button>
             </div>
@@ -933,7 +877,8 @@ export function Chat() {
                   navigate(`/chat/${sid}`);
                   setHistoryOpen(false);
                 }}
-                onDelete={(sid) => setDeleteTarget(sessions.find((s) => s.id === sid) ?? null)}
+                onMenu={(s) => setMenuSession(s)}
+                onBulkDelete={bulkDelete}
               />
             </div>
           </div>
@@ -983,6 +928,120 @@ export function Chat() {
         </div>
       </Modal>
 
+      {/* 会话操作 */}
+      <Modal open={Boolean(menuSession)} onClose={() => setMenuSession(null)} title={menuSession?.title ?? ""}>
+        {menuSession && (
+          <div className="space-y-1">
+            <button
+              onClick={() => void togglePin(menuSession)}
+              className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[13px] text-ink transition hover:bg-elevated"
+            >
+              {menuSession.pinned ? <PinOff size={15} className="text-brand" /> : <Pin size={15} className="text-brand" />}
+              {menuSession.pinned ? t("chat.unpin") : t("chat.pin")}
+            </button>
+            <button
+              onClick={() => {
+                setRenameTarget(menuSession);
+                setRenameValue(menuSession.title);
+                setMenuSession(null);
+              }}
+              className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[13px] text-ink transition hover:bg-elevated"
+            >
+              <Pencil size={15} className="text-brand" /> {t("chat.rename")}
+            </button>
+            <button
+              onClick={() => void exportSession(menuSession)}
+              className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[13px] text-ink transition hover:bg-elevated"
+            >
+              <Download size={15} className="text-brand" /> {t("chat.export")}
+            </button>
+            <div className="my-1 divider" />
+            <button
+              onClick={() => {
+                setDeleteTarget(menuSession);
+                setMenuSession(null);
+              }}
+              className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[13px] text-danger transition hover:bg-danger/10"
+            >
+              <Trash2 size={15} /> {t("chat.deleteSession")}
+            </button>
+          </div>
+        )}
+      </Modal>
+
+      {/* 重命名 */}
+      <Modal
+        open={Boolean(renameTarget)}
+        onClose={() => setRenameTarget(null)}
+        title={t("chat.rename")}
+        footer={
+          <>
+            <button className="btn-outline" onClick={() => setRenameTarget(null)}>
+              {t("common.cancel")}
+            </button>
+            <button className="btn-primary" disabled={!renameValue.trim()} onClick={() => void submitRename()}>
+              {t("common.save")}
+            </button>
+          </>
+        }
+      >
+        <input
+          value={renameValue}
+          onChange={(e) => setRenameValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") void submitRename();
+          }}
+          maxLength={80}
+          autoFocus
+          className="input"
+          placeholder={t("chat.renamePlaceholder")}
+        />
+      </Modal>
+
+      {/* 编辑并重发 */}
+      <Modal
+        open={Boolean(editTarget)}
+        onClose={() => setEditTarget(null)}
+        title={t("chat.editTitle")}
+        footer={
+          <>
+            <button className="btn-outline" onClick={() => setEditTarget(null)}>
+              {t("common.cancel")}
+            </button>
+            <button
+              className="btn-primary"
+              disabled={!editTarget || (!editTarget.text.trim() && editTarget.files.length === 0)}
+              onClick={() => void submitEdit()}
+            >
+              {sending ? <Loader2 size={14} className="animate-spin" /> : null}
+              {t("chat.saveAndResend")}
+            </button>
+          </>
+        }
+      >
+        {editTarget && editTarget.files.length > 0 && (
+          <div className="mb-3 rounded-xl border border-line bg-elevated px-3 py-2">
+            <div className="mb-1 text-[10.5px] uppercase tracking-wide text-faint">{t("chat.attachments")}</div>
+            <div className="space-y-1">
+              {editTarget.files.map((f) => (
+                <div key={f.name} className="flex items-center gap-1.5 text-[11.5px] text-muted">
+                  <Paperclip size={10} className="text-brand" /> {f.name}
+                  <span className="text-[10px] text-faint">{formatBytes(f.size)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        <textarea
+          value={editTarget?.text ?? ""}
+          onChange={(e) => setEditTarget((prev) => (prev ? { ...prev, text: e.target.value } : prev))}
+          rows={6}
+          autoFocus
+          className="input min-h-[140px] resize-y leading-relaxed"
+        />
+        <p className="mt-2 text-[11.5px] leading-relaxed text-faint">{t("chat.editHint")}</p>
+      </Modal>
+
       {/* 删除会话 */}
       <Modal
         open={Boolean(deleteTarget)}
@@ -1004,4 +1063,3 @@ export function Chat() {
     </div>
   );
 }
-

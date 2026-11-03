@@ -17,7 +17,8 @@
 - **我想改成 Postgres / 换模型** → [架构 · 扩展点](./ARCHITECTURE.md#13-扩展点)
 - **我要公网访问但没公网 IP** → [部署 · Cloudflare Tunnel](./DEPLOYMENT.md#6-cloudflare-tunnel)
 - **我要给同事开账号** → [API · 成员与角色](./API.md#成员与角色)
+- **我想看运行与 token 花在哪** → [API · 用量洞察](./API.md#用量洞察)
 
 ## 截图
 
-全部界面截图位于 [`screenshots/`](./screenshots)，桌面 1440×900 @2x，移动端 390×844 @3x。
+全部界面截图位于 [`screenshots/`](./screenshots)，桌面 1440×900 @2x，移动端 390×844 @2x。

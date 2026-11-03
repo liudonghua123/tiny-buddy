@@ -95,7 +95,7 @@ chatRouter.post(
   requirePermission("agent:run"),
   asyncHandler(async (req, res) => {
     const { content, skillKey } = parseBody(
-      z.object({ content: z.string().min(1).max(12000), skillKey: z.string().nullable().optional() }),
+      z.object({ content: z.string().min(1).max(130000), skillKey: z.string().nullable().optional() }),
       req,
     );
     const session = db.prepare(`SELECT id FROM sessions WHERE id = ? AND user_id = ?`).get(req.params.id, req.user!.id);
@@ -134,7 +134,9 @@ chatRouter.post(
   requirePermission("agent:run"),
   asyncHandler(async (req, res) => {
     const sessionId = req.params.id;
-    const session = db.prepare(`SELECT id FROM sessions WHERE id = ? AND user_id = ?`).get(sessionId, req.user!.id);
+    const session = db.prepare(`SELECT id, skill_key FROM sessions WHERE id = ? AND user_id = ?`).get(sessionId, req.user!.id) as
+      | { id: string; skill_key: string | null }
+      | undefined;
     if (!session) throw new HttpError(404, "会话不存在", "not_found");
     if (inFlight.has(sessionId)) throw new HttpError(409, "该会话正在生成回复，请先停止", "run_in_progress");
 
@@ -158,6 +160,51 @@ chatRouter.post(
         sessionId,
         input: lastUser.content,
         reuseUserId: lastUser.id,
+        reuseSkillKey: session.skill_key,
+        signal: controller.signal,
+      }),
+      sessionId,
+      controller,
+      ping,
+      send,
+    );
+  }),
+);
+
+/** 编辑某条提问并重发：更新原文、丢弃其后的所有回答，再跑一次 */
+chatRouter.post(
+  "/:id/messages/:messageId/retry",
+  requirePermission("agent:run"),
+  asyncHandler(async (req, res) => {
+    const sessionId = req.params.id;
+    const { content } = parseBody(z.object({ content: z.string().min(1).max(130000) }), req);
+    const session = db.prepare(`SELECT id, skill_key FROM sessions WHERE id = ? AND user_id = ?`).get(sessionId, req.user!.id) as
+      | { id: string; skill_key: string | null }
+      | undefined;
+    if (!session) throw new HttpError(404, "会话不存在", "not_found");
+    if (inFlight.has(sessionId)) throw new HttpError(409, "该会话正在生成回复，请先停止", "run_in_progress");
+
+    const target = db
+      .prepare(`SELECT id FROM messages WHERE id = ? AND session_id = ? AND role = 'user'`)
+      .get(req.params.messageId, sessionId);
+    if (!target) throw new HttpError(404, "提问不存在", "not_found");
+
+    const limit = rateLimit(`chat:${req.user!.id}`, 30, 60_000);
+    if (!limit.ok) {
+      res.setHeader("Retry-After", Math.ceil(limit.retryAfterMs / 1000));
+      throw new HttpError(429, "请求过于频繁，请稍后再试", "rate_limited");
+    }
+
+    const { controller, ping, send } = openSse(req, res);
+    await streamAgent(
+      req,
+      res,
+      runAgent({
+        user: req.user!,
+        sessionId,
+        input: content,
+        reuseUserId: req.params.messageId,
+        reuseSkillKey: session.skill_key,
         signal: controller.signal,
       }),
       sessionId,

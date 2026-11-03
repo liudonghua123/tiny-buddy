@@ -9,7 +9,7 @@
 
 [English](./README.en.md) · [变更记录](./CHANGELOG.md) · [文档索引](./docs/README.md) · [架构](./docs/ARCHITECTURE.md) · [API](./docs/API.md) · [MCP](./docs/MCP.md) · [部署](./docs/DEPLOYMENT.md)
 
-仓库：<https://github.com/liudonghua123/tiny-buddy> · 在线演示：<https://peak-enrolled-kingdom-winston.trycloudflare.com>
+仓库：<https://github.com/liudonghua123/tiny-buddy> · 公网访问：[Cloudflare Tunnel 指南](./docs/DEPLOYMENT.md#6-cloudflare-tunnel)
 
 ![登录页](./docs/screenshots/login.png)
 
@@ -47,7 +47,7 @@ TinyBuddy 把 AI 当成一个**团队成员**来建模：
 | 它够不到我们的系统 | **MCP 客户端**：接入任意 MCP 服务，工具自动进入 Agent 工具箱 |
 | 别的 AI 够不到它 | **MCP 服务端**：把平台能力以 MCP 协议开放给 Claude Desktop / Cursor |
 | 它只会被动回答 | **定时任务**：cron 触发，以创建者身份自主跑完一个任务 |
-| 不敢给同事用 | **RBAC**：21 个权限点、自定义角色、API Key 收窄、全量审计 |
+| 不敢给同事用 | **RBAC**：22 个权限点、自定义角色、API Key 收窄、全量审计 |
 
 ---
 
@@ -62,7 +62,7 @@ TinyBuddy 把 AI 当成一个**团队成员**来建模：
 | **MCP 客户端** | 支持 Streamable HTTP / SSE 两种传输，连接后自动发现工具并注入 Agent |
 | **MCP 服务端** | 平台 10 个能力以标准 MCP 暴露，API Key 鉴权，可挂载到任何 MCP 客户端 |
 | **定时任务** | 5 段 cron、时区感知、立即触发、执行历史、结果落到独立会话 |
-| **RBAC** | 4 个内置角色 + 自定义角色、21 个权限点、前后端同一份判定逻辑、全量审计日志 |
+| **RBAC** | 4 个内置角色 + 自定义角色、22 个权限点、前后端同一份判定逻辑、全量审计日志 |
 | **可观测** | Run 记录（步数 / token / 耗时）、平台统计、审计日志 |
 | **体验** | 移动端优先响应式、中英双语、浅色 / 深色 / 跟随系统 |
 
@@ -329,7 +329,7 @@ pnpm --filter @tiny-buddy/server exec tsx scripts/test-mcp.ts
 
 ## 权限模型
 
-权限点按 `资源:动作` 组织，共 21 个，例如 `memory:read`、`mcp:write`、`platform:admin`。
+权限点按 `资源:动作` 组织，共 22 个，例如 `memory:read`、`mcp:write`、`platform:admin`。
 
 判定逻辑在 `packages/shared/src/rbac.ts`——**前后端共用同一份实现**：
 
@@ -415,7 +415,8 @@ MCP 端点是无状态的，可以水平扩展；但定时任务目前是进程�
 - 文档解析仅支持纯文本类（`.md` / `.txt` / `.json`），PDF / Word 需先转文本；
 - 向量为本地哈希实现，语义泛化弱于真实 embedding 模型；
 - 定时任务为进程内轮询，多实例需改分布式调度；
-- MCP 服务端只支持 API Key / JWT，未实现 OAuth 授权流程。
+- MCP 服务端只支持 API Key / JWT，未实现 OAuth 授权流程；
+- 对话附件仅支持文本类文件（单个 ≤32KB、最多 5 个），图片 / PDF 需先转文本。
 
 ## 技术栈
 
