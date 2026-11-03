@@ -18,7 +18,7 @@ function resolveSecret(): string {
 }
 
 export const env = {
-  version: "0.2.0",
+  version: "0.2.1",
   port: Number(process.env.PORT ?? 8787),
   host: process.env.HOST ?? "0.0.0.0",
   nodeEnv: process.env.NODE_ENV ?? "development",

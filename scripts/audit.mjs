@@ -105,6 +105,52 @@ for (const [name, path] of [
   shots.push(name);
 }
 
+// ---------- 会话分享（作者侧 → 访客侧）----------
+let shareLink = "";
+try {
+  await page.goto(`${BASE}/chat`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(600);
+  const firstSession = page.locator('button[title="操作"]').first();
+  if (await firstSession.count()) {
+    // 打开会话后再从头部菜单分享
+    await page.getByText("在知识库中查一下发布流程").first().click();
+    await page.waitForTimeout(1200);
+    await page.locator('button[title="操作"]').last().click();
+    await page.waitForTimeout(300);
+    await page.getByRole("button", { name: "分享对话" }).click();
+    await page.waitForTimeout(800);
+    const create = page.getByRole("button", { name: "生成链接" });
+    if (await create.count()) {
+      await create.click();
+      await page.waitForTimeout(900);
+    }
+    shareLink = await page.locator("input[readonly]").first().inputValue();
+    await page.screenshot({ path: `${OUT}/d12-share-modal.png` });
+    shots.push("d12-share-modal");
+  }
+} catch (err) {
+  errors.push(`[share] ${String(err).slice(0, 160)}`);
+}
+
+if (shareLink) {
+  const guest = await newPage(desktop);
+  guest.page.on("console", (m) => {
+    if (m.type() === "error") errors.push(`[guest console] ${m.text().slice(0, 200)}`);
+  });
+  guest.page.on("pageerror", (e) => errors.push(`[guest pageerror] ${e.message.slice(0, 200)}`));
+  guest.page.on("response", (r) => {
+    if (r.url().includes("/api/") && r.status() >= 400) errors.push(`[guest http ${r.status()}] ${r.url()}`);
+  });
+  await guest.page.goto(shareLink, { waitUntil: "networkidle" });
+  await guest.page.waitForTimeout(1000);
+  const guestText = await guest.page.locator("main").innerText();
+  const ok = guestText.includes("只读") || (await guest.page.locator("header").innerText()).includes("只读分享");
+  if (!ok) errors.push("[share] guest page missing read-only badge");
+  await guest.page.screenshot({ path: `${OUT}/d13-share-guest.png` });
+  shots.push("d13-share-guest");
+  await guest.ctx.close();
+}
+
 // 横向溢出检测
 const overflow = [];
 for (const p of [page, m.page]) {

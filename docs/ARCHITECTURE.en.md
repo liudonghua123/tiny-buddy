@@ -185,7 +185,7 @@ Fifteen tables, all declared with `CREATE TABLE IF NOT EXISTS` in `packages/serv
 | `roles` | `key`, `permissions` (JSON), `is_builtin` | Built-in roles cannot be deleted |
 | `users` | `email`, `password_hash`, `role_id`, `locale`, `theme`, `status` | scrypt + per-user salt |
 | `api_keys` | `key_hash`, `prefix`, `scopes` (JSON), `last_used_at` | Only hashes are stored |
-| `sessions` | `user_id`, `title`, `kind`, `ref_id` | `kind` = chat \| schedule |
+| `sessions` | `user_id`, `title`, `kind`, `ref_id`, `pinned`, `share_token`, `share_expires_at` | `kind` = chat \| schedule; `share_token` powers read-only sharing |
 | `messages` | `session_id`, `role`, `content`, `parts` (JSON), `usage` (JSON) | `parts` holds tool-call segments |
 | `memories` | `user_id`, `kind`, `scope`, `content`, `embedding` (JSON), `importance` | Embedding column kept separate on purpose |
 | `skills` | `key`, `instructions`, `triggers` (JSON), `resources` (JSON), `tools` (JSON) | Declarative packs |

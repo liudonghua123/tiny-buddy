@@ -205,7 +205,13 @@ function ensureColumn(table: string, column: string, ddl: string): void {
 export function migrate(): void {
   db.exec(SCHEMA);
   ensureColumn("sessions", "pinned", "INTEGER NOT NULL DEFAULT 0");
+  // 会话分享：token 为空表示未开启；expires_at 为空表示长期有效
+  ensureColumn("sessions", "share_token", "TEXT");
+  ensureColumn("sessions", "share_expires_at", "TEXT");
+  ensureColumn("sessions", "shared_at", "TEXT");
+  ensureColumn("sessions", "share_views", "INTEGER NOT NULL DEFAULT 0");
   db.exec("CREATE INDEX IF NOT EXISTS idx_sessions_pin ON sessions(user_id, pinned, updated_at)");
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_share ON sessions(share_token)");
 }
 
 export const now = (): string => new Date().toISOString();

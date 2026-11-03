@@ -1,3 +1,30 @@
+## v0.2.1 — 只读会话分享
+
+把「这段对话挺好，发给同事看看」变成一次点击。分享链接**不需要对方登录**，权限、有效期与撤销都在作者手里。
+
+### 新增：分享链接
+
+- `sessions` 表新增 `share_token` / `share_expires_at` / `shared_at` / `share_views`（启动时自动补列，老库无需重建），`share_token` 上建唯一索引。
+- `POST /api/sessions/:id/share` 生成链接：`expiresInDays` 支持 `1 / 7 / 30 / 0（长期）`，上限 90 天；`rotate: true` 换发新 token，旧链接立刻 404。已开启时再次调用只续期，链接本身不变。
+- `DELETE /api/sessions/:id/share` 撤销：token 清空、浏览计数归零。
+- 新增权限点 **`session:share`**（第 23 个），内置角色里只有 owner / admin / member 拥有，viewer 只能聊不能分享。系统角色在启动时做「只增不减」的权限补齐，升级不会丢掉管理员的自定义授权。
+
+### 新增：访客侧只读页
+
+- `GET /api/share/:token` **公开接口，无需鉴权**，按 IP 限流 60 次/分钟；返回 `410 share_expired` / `404 share_not_found`，并累加浏览计数。
+- 载荷只保留 `role / content / parts`：工具卡片保留名称与状态，`input` 与 `output` 一律清空，避免把内部检索结果带出去。
+- 前端 `/s/:token` 独立路由（不在登录壳里），移动端优先，自带语言与主题切换、创建时间与有效期提示、页脚「只读 · 不会随对话更新」。
+
+### 体验细节
+
+- 分享弹窗回填当前链接的剩余有效期，点击有效期标签**立即生效**（只改过期时间，链接不变），换发与撤销是两个显式动作，避免误杀别人手上的链接。
+- 非 HTTPS 环境下 `navigator.clipboard` 不可用，复制按钮自动降级为 `execCommand`。
+- 审计日志新增 `session.share` / `session.share_update` / `session.share_rotate` / `session.share_revoke`。
+
+### 回归
+
+- `pnpm typecheck` / `pnpm build` 全绿；`node scripts/audit.mjs` 覆盖 18 张截图、0 控制台错误、桌面与移动端均无横向溢出，并新增「作者生成链接 → 访客未登录读取」的端到端断言。
+
 ## v0.2.0 — 会话工作流与用量洞察
 
 本轮继续对照 WorkBuddy / Octop / ChatGPT 的日常使用路径，补齐「会话管理」和「成本可见性」两块最容易被忽略、但天天会碰的能力；同时修复了附件、语言偏好与统计数据中的几个真实缺陷。

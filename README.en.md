@@ -47,7 +47,7 @@ TinyBuddy models the AI as a **team member**:
 | It can't reach our systems | **MCP client** — connect any MCP server, tools auto-injected |
 | Other AIs can't reach it | **MCP server** — expose platform capabilities to Claude Desktop / Cursor |
 | It only reacts | **Schedules** — cron runs a full agent turn as the task owner |
-| I can't give it to colleagues | **RBAC** — 22 permissions, custom roles, scoped API keys, full audit trail |
+| I can't give it to colleagues | **RBAC** — 23 permissions, custom roles, scoped API keys, full audit trail |
 
 ---
 
@@ -56,13 +56,14 @@ TinyBuddy models the AI as a **team member**:
 | Module | Capability |
 | --- | --- |
 | **Chat agent** | SSE streaming, multi-step tool calls, memory recall, skill activation, interrupt, regenerate, **edit & resend**, **slash commands**, **text attachments**, session search / pin / bulk delete / Markdown export, code-block copy |
+| **Sharing** | Pin / rename / bulk delete, Markdown export, **read-only share links** with expiry, revoke and rotate — guests read without signing in |
 | **Memory** | 5 kinds (fact / preference / episode / procedure / entity); write-time dedup; hybrid scoring; manual CRUD + recall playground |
 | **Skills** | Declarative packs (instructions + triggers + references + required tools); **progressive disclosure** injects only active skills |
 | **Knowledge** | Multiple bases, heading-aware chunking, lexical + vector hybrid search, hits carry document name and score |
 | **MCP client** | Streamable HTTP and SSE transports, automatic tool discovery |
 | **MCP server** | 10 platform tools over standard MCP, API-key auth, scoped per key |
 | **Schedules** | 5-field cron, timezone aware, run-now, execution history, results land in a dedicated session |
-| **RBAC** | 4 built-in roles + custom roles, 22 permissions, one shared policy module, audit log |
+| **RBAC** | 4 built-in roles + custom roles, 23 permissions, one shared policy module, audit log |
 | **Observability** | Run records (steps / tokens / latency), **usage insights** (daily trend, tool & skill heat, success rate), platform stats, audit trail |
 | **UX** | Mobile-first responsive, EN/中文, light / dark / system theme |
 
@@ -101,6 +102,10 @@ TinyBuddy models the AI as a **team member**:
 **Session search and day grouping**
 
 ![Session search](./docs/screenshots/session-search.png)
+
+| Share a conversation | Guest view (no sign-in) |
+| --- | --- |
+| ![Share](./docs/screenshots/share-modal.png) | ![Shared page](./docs/screenshots/share-page.png) |
 
 | Members and roles | Audit log |
 | --- | --- |

@@ -12,6 +12,7 @@ import { UsagePage } from "./pages/Usage";
 import { MembersPage } from "./pages/Members";
 import { AuditPage } from "./pages/Audit";
 import { SettingsPage } from "./pages/Settings";
+import { SharedPage } from "./pages/Shared";
 import { useAuth } from "./lib/auth";
 import { useI18n } from "./lib/i18n";
 import { Spinner } from "./components/ui";
@@ -65,6 +66,8 @@ export default function App() {
       <LocaleSync />
       <Routes>
         <Route path="/login" element={<Login />} />
+        {/* 公开只读分享页：不需要登录 */}
+        <Route path="/s/:token" element={<SharedPage />} />
         <Route
           element={
             <Protected>

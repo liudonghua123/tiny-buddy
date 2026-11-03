@@ -281,3 +281,26 @@ export interface UsageOverview {
   topSkills: { key: string; name: string; usage: number }[];
   recent: UsageRunRow[];
 }
+
+/* ------------------------------- 会话分享 ------------------------------- */
+
+export interface SessionShare {
+  /** 是否已开启分享 */
+  active: boolean;
+  token: string | null;
+  /** 相对路径，前端拼 origin 即可 */
+  path: string | null;
+  createdAt: string | null;
+  expiresAt: string | null;
+  viewCount: number;
+}
+
+export interface SharedSession {
+  token: string;
+  title: string;
+  ownerName: string;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string | null;
+  messages: Pick<Message, "id" | "role" | "content" | "parts" | "createdAt">[];
+}

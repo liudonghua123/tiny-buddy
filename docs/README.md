@@ -18,7 +18,10 @@
 - **我要公网访问但没公网 IP** → [部署 · Cloudflare Tunnel](./DEPLOYMENT.md#6-cloudflare-tunnel)
 - **我要给同事开账号** → [API · 成员与角色](./API.md#成员与角色)
 - **我想看运行与 token 花在哪** → [API · 用量洞察](./API.md#用量洞察)
+- **我想把这段对话发给同事看** → [API · 会话分享](./API.md#会话分享)
 
 ## 截图
 
 全部界面截图位于 [`screenshots/`](./screenshots)，桌面 1440×900 @2x，移动端 390×844 @2x。
+
+新增：`share-modal.png`（分享弹窗）、`share-page.png`（访客免登录的只读页）、`chat-commands.png`（斜杠命令）、`chat-attachments.png`（文本附件）、`usage.png` / `mobile-usage.png`（用量洞察）。

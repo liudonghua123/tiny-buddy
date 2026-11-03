@@ -2,6 +2,7 @@
 
 export const PERMISSIONS = {
   "agent:run": "运行 Agent / 对话",
+  "session:share": "分享会话（只读链接）",
   "agent:manage": "管理 Agent 配置",
   "memory:read": "查看记忆",
   "memory:write": "写入记忆",
@@ -61,6 +62,7 @@ export const ROLE_PRESETS: RolePreset[] = [
     description: "日常使用：对话、记忆、知识与定时任务",
     permissions: [
       "agent:run",
+      "session:share",
       "memory:read",
       "memory:write",
       "memory:delete",
@@ -82,14 +84,7 @@ export const ROLE_PRESETS: RolePreset[] = [
     name: "访客",
     nameEn: "Viewer",
     description: "只读访问，可发起对话",
-    permissions: [
-      "agent:run",
-      "memory:read",
-      "skill:read",
-      "knowledge:read",
-      "mcp:read",
-      "schedule:read",
-    ],
+    permissions: ["agent:run", "memory:read", "skill:read", "knowledge:read", "mcp:read", "schedule:read"],
     color: "#6b7280",
   },
 ];

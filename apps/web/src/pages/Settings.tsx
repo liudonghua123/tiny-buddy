@@ -233,7 +233,7 @@ export function SettingsPage() {
           <dl className="space-y-2 text-[12.5px]">
             <div className="flex items-center justify-between">
               <dt className="text-muted">{t("settings.version")}</dt>
-              <dd className="font-mono text-ink">v{meta?.version ?? "0.2.0"}</dd>
+              <dd className="font-mono text-ink">v{meta?.version ?? "0.2.1"}</dd>
             </div>
             <div className="flex items-center justify-between">
               <dt className="text-muted">{t("settings.provider")}</dt>

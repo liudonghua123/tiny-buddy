@@ -10,13 +10,22 @@ const PALETTE = ["#7c5cff", "#2f9e8f", "#c2751f", "#3b7ddd", "#d05270", "#6a8f2f
 export function ensureRoles(): Record<string, string> {
   const map: Record<string, string> = {};
   for (const preset of ROLE_PRESETS) {
-    let row = db.prepare(`SELECT id FROM roles WHERE key = ?`).get(preset.key) as { id: string } | undefined;
+    let row = db.prepare(`SELECT id, permissions FROM roles WHERE key = ?`).get(preset.key) as
+      | { id: string; permissions: string }
+      | undefined;
     if (!row) {
       const id = newId("rol");
       db.prepare(
         `INSERT INTO roles (id, key, name, description, permissions, color, is_system, created_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?)`,
       ).run(id, preset.key, preset.name, preset.description, JSON.stringify(preset.permissions), preset.color, now());
-      row = { id };
+      row = { id, permissions: JSON.stringify(preset.permissions) };
+    } else {
+      // 版本升级会新增权限点：系统角色做「只增不减」的补齐，保留管理员的自定义授权
+      const current = JSON.parse(row.permissions || "[]") as string[];
+      const missing = preset.permissions.filter((p) => !current.includes(p));
+      if (missing.length) {
+        db.prepare(`UPDATE roles SET permissions = ? WHERE id = ?`).run(JSON.stringify([...current, ...missing]), row.id);
+      }
     }
     map[preset.key] = row.id;
   }

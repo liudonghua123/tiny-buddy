@@ -90,6 +90,9 @@ POST  /api/auth/change-password  { "currentPassword": "...", "newPassword": "...
 | POST | `/api/sessions/:id/messages` | `agent:run` | **发送消息，返回 SSE 流** |
 | POST | `/api/sessions/:id/regenerate` | `agent:run` | 重新生成最后一条回答（复用原提问） |
 | POST | `/api/sessions/:id/messages/:messageId/retry` | `agent:run` | 编辑提问并重发 `{ content }`，丢弃其后的回答 |
+| GET | `/api/sessions/:id/share` | `agent:run` | 查询分享状态 `{ active, token, path, expiresAt, viewCount }` |
+| POST | `/api/sessions/:id/share` | `session:share` | 生成 / 续期分享链接 `{ expiresInDays?: 0\|1\|7\|30\|90, rotate?: boolean }` |
+| DELETE | `/api/sessions/:id/share` | `session:share` | 撤销分享，链接立即失效 |
 
 ### 发送消息
 
@@ -101,6 +104,35 @@ Content-Type: application/json
 ```
 
 响应 `text/event-stream`，见下一节。
+
+---
+
+## 会话分享
+
+只读分享：拿到链接的人**无需登录**即可查看这段对话，但不能发消息、看不到工具入参与返回内容。
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| GET | `/api/sessions/:id/share` | `agent:run` | 当前分享状态；过期的链接按未开启处理 |
+| POST | `/api/sessions/:id/share` | `session:share` | `expiresInDays`：0 为长期，上限 90 天；`rotate: true` 换发新 token（旧链接立刻 404） |
+| DELETE | `/api/sessions/:id/share` | `session:share` | 撤销并清零浏览计数 |
+| GET | `/api/share/:token` | 公开 | 访客读取会话，**无需鉴权**，按 IP 限流 60 次/分钟 |
+
+```json
+{
+  "token": "DXFM4EebPfx0kQTKiKE3fA",
+  "title": "如何接入外部 MCP 工具",
+  "ownerName": "林小满",
+  "createdAt": "2026-11-02T23:57:59.521Z",
+  "updatedAt": "2026-11-03T00:17:06.038Z",
+  "expiresAt": "2026-12-03T00:17:06.038Z",
+  "messages": [{ "id": "msg_...", "role": "user", "content": "…", "parts": [], "createdAt": "…" }]
+}
+```
+
+错误码：`404 share_not_found`（不存在或已撤销）、`410 share_expired`（已过期）、`429 rate_limited`。
+
+> 分享页只暴露 `role / content / parts`，工具卡片保留名称与状态，`input` 与 `output` 会被清空。
 
 ---
 
@@ -397,7 +429,7 @@ POST /api/keys
 | PATCH | `/api/roles/:id` | `role:write` | 修改（内置角色不可改 key） |
 | DELETE | `/api/roles/:id` | `role:write` | 删除（有成员在用则拒绝） |
 
-权限点全量清单见 [`packages/shared/src/rbac.ts`](../packages/shared/src/rbac.ts)，共 22 个。
+权限点全量清单见 [`packages/shared/src/rbac.ts`](../packages/shared/src/rbac.ts)，共 23 个。
 
 ---
 

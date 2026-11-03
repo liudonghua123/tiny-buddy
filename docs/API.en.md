@@ -90,6 +90,9 @@ POST  /api/auth/change-password   { "currentPassword": "...", "newPassword": "..
 | POST | `/api/sessions/:id/messages` | `agent:run` | **Send message, returns SSE** |
 | POST | `/api/sessions/:id/regenerate` | `agent:run` | Regenerate the last answer (reuses the question) |
 | POST | `/api/sessions/:id/messages/:messageId/retry` | `agent:run` | Edit a question and resend `{ content }`, discarding later answers |
+| GET | `/api/sessions/:id/share` | `agent:run` | Current share state `{ active, token, path, expiresAt, viewCount }` |
+| POST | `/api/sessions/:id/share` | `session:share` | Create / renew a share link `{ expiresInDays?: 0\|1\|7\|30\|90, rotate?: boolean }` |
+| DELETE | `/api/sessions/:id/share` | `session:share` | Revoke sharing, the link dies immediately |
 
 ```http
 POST /api/sessions/:id/messages
@@ -97,6 +100,35 @@ Content-Type: application/json
 
 { "content": "Search the knowledge base for the release process", "skillKey": null }
 ```
+
+---
+
+## Session sharing
+
+Read-only sharing: anyone with the link can read the conversation **without signing in** — no sending, and tool inputs/results stay hidden.
+
+| Method | Path | Permission | Notes |
+| --- | --- | --- | --- |
+| GET | `/api/sessions/:id/share` | `agent:run` | Current state; an expired link counts as not shared |
+| POST | `/api/sessions/:id/share` | `session:share` | `expiresInDays`: 0 = never, max 90; `rotate: true` issues a new token (old link 404s at once) |
+| DELETE | `/api/sessions/:id/share` | `session:share` | Revoke and reset the view counter |
+| GET | `/api/share/:token` | public | Guest read, **no auth**, rate limited to 60 req/min per IP |
+
+```json
+{
+  "token": "DXFM4EebPfx0kQTKiKE3fA",
+  "title": "How to connect an external MCP tool",
+  "ownerName": "Lin Xiaoman",
+  "createdAt": "2026-11-02T23:57:59.521Z",
+  "updatedAt": "2026-11-03T00:17:06.038Z",
+  "expiresAt": "2026-12-03T00:17:06.038Z",
+  "messages": [{ "id": "msg_...", "role": "user", "content": "…", "parts": [], "createdAt": "…" }]
+}
+```
+
+Errors: `404 share_not_found`, `410 share_expired`, `429 rate_limited`.
+
+> The public payload only carries `role / content / parts`; tool cards keep their name and status while `input` and `output` are stripped.
 
 ---
 
@@ -373,7 +405,7 @@ Empty `scopes` inherits the user's full permission set; otherwise effective perm
 | PATCH | `/api/roles/:id` | `role:write` | Update (built-in keys are fixed) |
 | DELETE | `/api/roles/:id` | `role:write` | Delete (rejected while in use) |
 
-The 22 permissions are defined in [`packages/shared/src/rbac.ts`](../packages/shared/src/rbac.ts).
+The 23 permissions are defined in [`packages/shared/src/rbac.ts`](../packages/shared/src/rbac.ts).
 
 ---
 

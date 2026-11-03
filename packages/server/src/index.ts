@@ -9,6 +9,7 @@ import { HttpError, authenticateMcp } from "./lib/http";
 import { authRouter } from "./routes/auth";
 import { sessionsRouter } from "./routes/sessions";
 import { chatRouter } from "./routes/chat";
+import { publicShareRouter, shareRouter } from "./routes/share";
 import { memoryRouter } from "./routes/memory";
 import { skillsRouter } from "./routes/skills";
 import { knowledgeRouter } from "./routes/knowledge";
@@ -80,6 +81,8 @@ app.get("/mcp", (req, res, next) => {
 app.use("/api/auth", authRouter);
 app.use("/api/sessions", sessionsRouter);
 app.use("/api/sessions", chatRouter);
+app.use("/api/sessions", shareRouter);
+app.use("/api/share", publicShareRouter);
 app.use("/api/memories", memoryRouter);
 app.use("/api/skills", skillsRouter);
 app.use("/api/knowledge", knowledgeRouter);

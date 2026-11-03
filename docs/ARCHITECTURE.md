@@ -185,7 +185,7 @@ run(opts):
 | `roles` | `key`, `permissions`(JSON), `is_builtin` | 角色与权限点；内置角色不可删 |
 | `users` | `email`, `password_hash`, `role_id`, `locale`, `theme`, `status` | 账号；密码 scrypt 加盐 |
 | `api_keys` | `key_hash`, `prefix`, `scopes`(JSON), `last_used_at` | 对外 MCP 的凭据，只存哈希 |
-| `sessions` | `user_id`, `title`, `kind`, `ref_id` | 会话；`kind` 区分 chat / schedule |
+| `sessions` | `user_id`, `title`, `kind`, `ref_id`, `pinned`, `share_token`, `share_expires_at` | 会话；`kind` 区分 chat / schedule，`share_token` 支撑只读分享 |
 | `messages` | `session_id`, `role`, `content`, `parts`(JSON), `usage`(JSON) | 消息；`parts` 存工具调用片段 |
 | `memories` | `user_id`, `kind`, `scope`, `content`, `embedding`(JSON), `importance` | 记忆；`embedding` 独立列便于换模型 |
 | `skills` | `key`, `instructions`, `triggers`(JSON), `resources`(JSON), `tools`(JSON) | 技能 |

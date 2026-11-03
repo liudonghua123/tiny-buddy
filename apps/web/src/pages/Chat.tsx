@@ -12,6 +12,7 @@ import {
   FileText,
   History,
   Languages,
+  Link2,
   Loader2,
   MoreHorizontal,
   Paperclip,
@@ -41,6 +42,7 @@ import {
   type Attachment,
 } from "../lib/attachments";
 import { Modal, Spinner } from "../components/ui";
+import { ShareModal } from "../components/chat/ShareModal";
 import { MessageRow, MemoryBadge } from "../components/chat/MessageRow";
 import { SessionList } from "../components/chat/SessionList";
 import { SlashCommands, type SlashItem } from "../components/chat/SlashCommands";
@@ -90,6 +92,7 @@ export function Chat() {
   const [skillOpen, setSkillOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Session | null>(null);
   const [menuSession, setMenuSession] = useState<Session | null>(null);
+  const [shareSession, setShareSession] = useState<Session | null>(null);
   const [renameTarget, setRenameTarget] = useState<Session | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
@@ -481,6 +484,7 @@ export function Chat() {
       { key: "clear", label: t("chat.cmdClear"), hint: "/clear", description: t("chat.cmdClearDesc"), icon: Eraser },
       { key: "skill", label: t("chat.cmdSkill"), hint: "/skill", description: t("chat.cmdSkillDesc"), icon: Sparkles },
       { key: "export", label: t("chat.cmdExport"), hint: "/export", description: t("chat.cmdExportDesc"), icon: Download },
+      { key: "share", label: t("chat.cmdShare"), hint: "/share", description: t("chat.cmdShareDesc"), icon: Link2 },
       { key: "memory", label: t("chat.cmdMemory"), hint: "/memory", description: t("chat.cmdMemoryDesc"), icon: Brain },
       { key: "usage", label: t("chat.cmdUsage"), hint: "/usage", description: t("chat.cmdUsageDesc"), icon: BarChart3 },
       { key: "summary", label: t("chat.cmdSummary"), hint: "/summary", description: t("chat.cmdSummaryDesc"), icon: FileText },
@@ -522,6 +526,11 @@ export function Chat() {
       case "export":
         setInput("");
         if (session) void exportSession(session);
+        else toast.info(t("chat.exportEmpty"));
+        break;
+      case "share":
+        setInput("");
+        if (session) setShareSession(session);
         else toast.info(t("chat.exportEmpty"));
         break;
       case "memory":
@@ -955,6 +964,15 @@ export function Chat() {
             >
               <Download size={15} className="text-brand" /> {t("chat.export")}
             </button>
+            <button
+              onClick={() => {
+                setShareSession(menuSession);
+                setMenuSession(null);
+              }}
+              className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[13px] text-ink transition hover:bg-elevated"
+            >
+              <Link2 size={15} className="text-brand" /> {t("chat.shareTitle")}
+            </button>
             <div className="my-1 divider" />
             <button
               onClick={() => {
@@ -968,6 +986,9 @@ export function Chat() {
           </div>
         )}
       </Modal>
+
+      {/* 分享 */}
+      <ShareModal open={Boolean(shareSession)} sessionId={shareSession?.id ?? null} onClose={() => setShareSession(null)} />
 
       {/* 重命名 */}
       <Modal
