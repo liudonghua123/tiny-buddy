@@ -1,17 +1,8 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
-  MessageSquare,
-  Brain,
-  Sparkles,
-  Library,
-  Plug,
-  CalendarClock,
-  BarChart3,
-  Users,
-  ScrollText,
-  Settings,
   MoreHorizontal,
+  Sparkles,
   Sun,
   Moon,
   Languages,
@@ -27,27 +18,7 @@ import { useI18n } from "../lib/i18n";
 import { useTheme } from "../lib/theme";
 import { initials } from "../lib/format";
 import { Modal } from "./ui";
-
-interface NavItem {
-  to: string;
-  key: string;
-  icon: typeof MessageSquare;
-  permission?: string;
-  group: "primary" | "admin";
-}
-
-export const NAV_ITEMS: NavItem[] = [
-  { to: "/chat", key: "nav.chat", icon: MessageSquare, group: "primary" },
-  { to: "/memory", key: "nav.memory", icon: Brain, permission: "memory:read", group: "primary" },
-  { to: "/skills", key: "nav.skills", icon: Sparkles, permission: "skill:read", group: "primary" },
-  { to: "/knowledge", key: "nav.knowledge", icon: Library, permission: "knowledge:read", group: "primary" },
-  { to: "/mcp", key: "nav.mcp", icon: Plug, permission: "mcp:read", group: "primary" },
-  { to: "/schedules", key: "nav.schedules", icon: CalendarClock, permission: "schedule:read", group: "primary" },
-  { to: "/usage", key: "nav.usage", icon: BarChart3, permission: "agent:run", group: "primary" },
-  { to: "/members", key: "nav.members", icon: Users, permission: "user:read", group: "admin" },
-  { to: "/audit", key: "nav.audit", icon: ScrollText, permission: "audit:read", group: "admin" },
-  { to: "/settings", key: "nav.settings", icon: Settings, group: "admin" },
-];
+import { NAV_ITEMS, type NavItem } from "./nav";
 
 function useNavList() {
   const { can } = useAuth();

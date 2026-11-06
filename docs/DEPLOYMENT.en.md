@@ -179,6 +179,24 @@ Three caveats:
 
 > While exposing a demo, at minimum set `ALLOW_REGISTER=false` and change the seeded passwords. An obscure hostname is not a security control.
 
+#### Dev mode (HMR through the tunnel)
+
+To show a colleague the **unreleased dev build**, point the tunnel at the Vite server instead — two extra knobs:
+
+```bash
+VITE_TUNNEL_HMR_PORT=443 pnpm dev     # terminal 1
+PORT=5173 ./scripts/tunnel.sh         # terminal 2
+```
+
+Both are handled in `apps/web/vite.config.ts`:
+
+| Problem | Fix |
+| --- | --- |
+| Vite 6 validates the `Host` header, returns 403 `Blocked request` | `server.allowedHosts = [".trycloudflare.com", "localhost", "127.0.0.1"]` |
+| The page is served on 443, so HMR would dial `wss://host:5173` | With `VITE_TUNNEL_HMR_PORT=443` it switches to `wss` + `clientPort: 443` |
+
+`/api` is still proxied by Vite to `127.0.0.1:8787`, so the backend never needs its own tunnel. Leave the variable unset for plain local `pnpm dev`, otherwise local HMR tries port 443.
+
 ### 6.4 Option B — named tunnel (permanent)
 
 Requires a domain on Cloudflare.

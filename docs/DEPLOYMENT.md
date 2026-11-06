@@ -189,6 +189,27 @@ curl -s https://<你的域名>.trycloudflare.com/api/health
 
 > 演示期间至少把 `ALLOW_REGISTER=false`，并把演示账号密码改掉——随机域名虽然不好猜，但公开暴露的写接口仍然有风险。
 
+#### dev 模式（Vite HMR 也走隧道）
+
+想给同事看「还没发布的开发版」，把隧道指向前端 dev server 即可，多两处配置：
+
+```bash
+# 1) 启动 dev 栈，并声明 HMR 走隧道的 443（wss）
+VITE_TUNNEL_HMR_PORT=443 pnpm dev
+
+# 2) 另开终端，隧道指到 5173
+PORT=5173 ./scripts/tunnel.sh
+```
+
+原因有两点，都已写进 `apps/web/vite.config.ts`：
+
+| 问题 | 处理 |
+| --- | --- |
+| Vite 6 会校验 `Host` 头，隧道域名直接 403 `Blocked request` | `server.allowedHosts = [".trycloudflare.com", "localhost", "127.0.0.1"]` |
+| 页面在 443 上，HMR 默认连 `wss://host:5173` 连不上 | 设 `VITE_TUNNEL_HMR_PORT=443` 时自动切成 `wss` + `clientPort: 443` |
+
+API 仍由 Vite 代理到 `127.0.0.1:8787`，所以后端不用单独暴露。本地直接用 `pnpm dev` 时不要带这个环境变量，否则本地 `http://localhost:5173` 的热更新会去连 443。
+
 ### 6.4 方式二：命名隧道（长期使用）
 
 需要一个托管在 Cloudflare 的域名。
