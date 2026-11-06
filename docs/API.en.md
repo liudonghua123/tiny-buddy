@@ -7,12 +7,16 @@
 - [Conventions](#conventions)
 - [Authentication](#authentication)
 - [Sessions and chat](#sessions-and-chat)
+- [Session sharing](#session-sharing)
+- [Global search](#global-search)
 - [SSE event stream](#sse-event-stream)
 - [Memory](#memory)
 - [Skills](#skills)
+- [Prompt templates](#prompt-templates)
 - [Knowledge base](#knowledge-base)
 - [MCP](#mcp)
 - [Schedules](#schedules)
+- [Usage insights](#usage-insights)
 - [API keys](#api-keys)
 - [Members and roles](#members-and-roles)
 - [Platform](#platform)
@@ -132,6 +136,51 @@ Errors: `404 share_not_found`, `410 share_expired`, `429 rate_limited`.
 
 ---
 
+## Global search
+
+Powers the ⌘K palette. One request searches six object types, filtered by permission, five hits per group.
+
+```http
+GET /api/search?q=release
+```
+
+| Field | Notes |
+| --- | --- |
+| `q` | Max 80 chars; an empty string returns no groups |
+| `groups[].kind` | `session` / `skill` / `document` / `prompt` / `schedule` / `memory` |
+| `groups[].items[].href` | In-app path the client can navigate to |
+| `snippet` | ±48 chars around the match, attachment bodies stripped |
+
+```json
+{
+  "q": "release",
+  "groups": [
+    {
+      "kind": "session",
+      "items": [{ "id": "ses_mvzx5v38aekekh", "title": "Summarise the release process", "subtitle": "Session title", "href": "/chat/ses_mvzx5v38aekekh" }]
+    },
+    {
+      "kind": "document",
+      "items": [{
+        "id": "doc_...",
+        "title": "Team handbook.md",
+        "subtitle": "Knowledge · Team handbook",
+        "snippet": "…code freeze 24h before release…",
+        "href": "/knowledge?doc=doc_..."
+      }]
+    }
+  ]
+}
+```
+
+Behaviour:
+
+- Title matches rank before message-body matches; only the caller's own sessions are searched.
+- Skills, documents and templates are gated by `skill:read` / `knowledge:read` / `prompt:read`; schedules and memories are scoped to the caller.
+- 120 requests/minute per user, otherwise `429 rate_limited`.
+
+---
+
 ## SSE event stream
 
 Each frame is `data: <json>\n\n`; the stream ends with `data: [DONE]`; `: ping` comment frames act as heartbeats. Types are defined in [`packages/shared/src/protocol.ts`](../packages/shared/src/protocol.ts).
@@ -238,6 +287,36 @@ POST /api/skills
 
 ---
 
+## Prompt templates
+
+Built-in templates are read-only; team templates are editable. Bodies use `{{variable}}` placeholders that the client inserts verbatim.
+
+| Method | Path | Permission | Description |
+| --- | --- | --- | --- |
+| GET | `/api/prompts` | `prompt:read` | Supports `?q=` and `?category=`, returns `{ items, stats }` |
+| GET | `/api/prompts/:id` | `prompt:read` | Single template |
+| POST | `/api/prompts` | `prompt:write` | Create `{ title, description?, body, category?, icon?, tags? }` |
+| PATCH | `/api/prompts/:id` | `prompt:write` | Partial update; built-ins return `403 builtin_readonly` |
+| DELETE | `/api/prompts/:id` | `prompt:write` | Delete; built-ins cannot be removed |
+| POST | `/api/prompts/:id/duplicate` | `prompt:write` | Clone as a team template (title gets “(copy)”) |
+| POST | `/api/prompts/:id/use` | `prompt:read` | Usage counter +1, used to rank popular templates |
+
+```http
+POST /api/prompts
+{
+  "title": "Weekly report",
+  "description": "Turn scattered notes into a report with a conclusion",
+  "body": "Turn the notes below into a weekly report…\n\nNotes:\n{{notes}}",
+  "category": "writing",
+  "icon": "file-text",
+  "tags": ["weekly", "report"]
+}
+```
+
+Suggested `category` values: `writing` / `dev` / `meeting` / `research` / `analysis` / `product` / `general`; up to 8 tags of 20 chars.
+
+---
+
 ## Knowledge base
 
 | Method | Path | Permission | Description |
@@ -290,6 +369,7 @@ Ingestion chunks on Markdown headings (480 chars / 60 overlap by default) and st
 | DELETE | `/api/mcp/servers/:id` | `mcp:write` | Delete and disconnect |
 | POST | `/api/mcp/servers/:id/sync` | `mcp:write` | Re-discover tools |
 | POST | `/api/mcp/servers/:id/call` | `mcp:invoke` | Debug call `{ tool, arguments }` |
+| GET | `/api/mcp/presets` | `mcp:read` | Connector directory (below) |
 | GET | `/api/mcp/tools` | `mcp:read` | All external tools |
 | GET | `/api/mcp/stats` | `mcp:read` | Connection and tool counts |
 
@@ -304,6 +384,35 @@ POST /api/mcp/servers
 ```
 
 `transport` ∈ `http` (Streamable HTTP) | `sse`. A failed connection returns `status: "error"` with a message rather than a 500, so one broken server can't take down the page.
+
+### Connector directory
+
+`GET /api/mcp/presets` returns a curated list for one-click pre-fill:
+
+```json
+{
+  "items": [{
+    "key": "github",
+    "name": "GitHub",
+    "description": "检索仓库、读写 Issue 与 PR…",
+    "descriptionEn": "Search repos, read and write issues and PRs…",
+    "category": "dev",
+    "url": "https://api.githubcopilot.com/mcp/",
+    "transport": "http",
+    "auth": {
+      "type": "bearer",
+      "header": "Authorization",
+      "hint": "用 Personal Access Token，按最小权限勾选 repo / read:org",
+      "hintEn": "Use a PAT scoped to repo / read:org"
+    },
+    "docsUrl": "https://github.com/github/github-mcp-server",
+    "icon": "github",
+    "tags": ["code", "issues", "PRs"]
+  }]
+}
+```
+
+`auth.type` ∈ `bearer` | `none` | `oauth`. This build has no OAuth flow, so `oauth` entries are display-only and the client disables “Add”. The directory is a **template**: the URL and headers go into the form and stay editable before connecting.
 
 ### Server endpoint
 
@@ -405,7 +514,7 @@ Empty `scopes` inherits the user's full permission set; otherwise effective perm
 | PATCH | `/api/roles/:id` | `role:write` | Update (built-in keys are fixed) |
 | DELETE | `/api/roles/:id` | `role:write` | Delete (rejected while in use) |
 
-The 23 permissions are defined in [`packages/shared/src/rbac.ts`](../packages/shared/src/rbac.ts).
+The 25 permissions are defined in [`packages/shared/src/rbac.ts`](../packages/shared/src/rbac.ts).
 
 ---
 

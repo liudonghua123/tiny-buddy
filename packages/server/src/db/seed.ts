@@ -549,9 +549,182 @@ export function seedUserWorkspace(userId: string, name: string): void {
   );
 }
 
+
+/** 内置提示词模板：只读，团队可复制后修改 */
+const BUILTIN_PROMPTS: {
+  id: string;
+  title: string;
+  description: string;
+  body: string;
+  category: string;
+  icon: string;
+  tags: string[];
+}[] = [
+  {
+    id: "prm_builtin_weekly",
+    title: "周报生成",
+    description: "把零散的每日记录整理成有结论、有风险、有下周计划的周报。",
+    category: "writing",
+    icon: "file-text",
+    tags: ["周报", "汇报"],
+    body:
+      "把下面这周的零散记录整理成一份周报，面向直属上级。\n\n" +
+      "要求：\n" +
+      "1. 开头三句话给结论：本周最重要的进展、当前最大风险、需要对方做的决定。\n" +
+      "2. 正文按「已完成 / 进行中 / 受阻」分组，每条写清结果与影响，不写过程流水账。\n" +
+      "3. 下周计划不超过 5 条，标注优先级与预计完成时间。\n" +
+      "4. 全文控制在 400 字以内，不使用「赋能、抓手、闭环」这类空话。\n\n" +
+      "本周记录：\n{{本周记录}}",
+  },
+  {
+    id: "prm_builtin_meeting",
+    title: "会议纪要",
+    description: "从录音转写或聊天记录里提炼决议、待办与责任人。",
+    category: "meeting",
+    icon: "clipboard-list",
+    tags: ["会议", "待办"],
+    body:
+      "把下面的会议内容整理成纪要。\n\n" +
+      "输出结构：\n" +
+      "- 一句话结论（这次会决定了什么）\n" +
+      "- 决议清单：每条注明「决定了什么 / 为什么 / 生效时间」\n" +
+      "- 待办表格：事项 | 负责人 | 截止时间 | 依赖\n" +
+      "- 未达成一致的问题：写明分歧点与下一步动作\n\n" +
+      "不要臆造没有出现的负责人或时间；信息缺失就写「待确认」。\n\n" +
+      "会议内容：\n{{会议内容}}",
+  },
+  {
+    id: "prm_builtin_prd",
+    title: "需求拆解",
+    description: "把一句模糊需求拆成可验收的用户故事与边界条件。",
+    category: "product",
+    icon: "list-checks",
+    tags: ["需求", "PRD"],
+    body:
+      "把这条需求拆成可开发的规格：{{需求描述}}\n\n" +
+      "1. 先复述你理解的目标用户与核心场景，列出 2-3 个仍然模糊、需要产品确认的问题。\n" +
+      "2. 拆成用户故事（作为…我希望…以便…），按优先级排序，标注 MVP 范围。\n" +
+      "3. 每个故事补验收标准：正常路径、空状态、权限不足、失败重试。\n" +
+      "4. 明确指出这次不做什么（Out of scope），避免范围蔓延。",
+  },
+  {
+    id: "prm_builtin_review",
+    title: "代码审查",
+    description: "按正确性、边界、性能、可读性、安全五个维度审查，按严重程度排序。",
+    category: "dev",
+    icon: "git-pull-request",
+    tags: ["代码", "Review"],
+    body:
+      "审查下面的代码，按严重程度从高到低输出问题。\n\n" +
+      "维度：正确性与边界条件、并发与资源释放、性能热点、可读性与命名、安全风险（注入、越权、密钥泄漏）。\n" +
+      "每条问题写：位置、为什么会出问题、最小修改建议（给 diff 或改写后的代码）。\n" +
+      "最后单独列「可以保留的写法」，避免为了改而改。\n\n" +
+      "语言/框架：{{技术栈}}\n代码：\n```\n{{代码}}\n```",
+  },
+  {
+    id: "prm_builtin_postmortem",
+    title: "故障复盘",
+    description: "从时间线还原故障，区分直接原因与系统性原因，给出可验证的改进项。",
+    category: "dev",
+    icon: "shield-alert",
+    tags: ["复盘", "稳定性"],
+    body:
+      "根据下面的故障信息写一份无指责复盘（blameless postmortem）。\n\n" +
+      "结构：影响面（用户/时长/数据）→ 时间线 → 直接原因 → 系统性原因（为什么监控/流程没兜住）→ 改进项。\n" +
+      "改进项必须是可验证的动作，注明负责人角色与截止时间；区分「已修复」与「待跟进」。\n" +
+      "如果信息不足以定位根因，先列出还需要哪些日志或指标。\n\n" +
+      "故障信息：\n{{故障信息}}",
+  },
+  {
+    id: "prm_builtin_competitor",
+    title: "竞品调研",
+    description: "围绕同一场景对比多家产品，输出差异点与可借鉴的取舍。",
+    category: "research",
+    icon: "search",
+    tags: ["调研", "竞品"],
+    body:
+      "对比 {{竞品列表}} 在「{{场景}}」上的做法。\n\n" +
+      "1. 先用一张表对齐：目标用户、核心流程、关键差异、定价策略、明显短板。\n" +
+      "2. 指出哪些差异是「能力差异」，哪些只是「设计取舍」，不要把后者说成缺陷。\n" +
+      "3. 给出 3 条可落地到我们产品的建议，按投入产出排序，并说明风险。\n" +
+      "4. 标注哪些结论来自公开资料、哪些是推测；推测必须显式标注。",
+  },
+  {
+    id: "prm_builtin_data",
+    title: "数据解读",
+    description: "从指标变化里找出真正的驱动因素，避免把相关性当因果。",
+    category: "analysis",
+    icon: "bar-chart-3",
+    tags: ["数据", "分析"],
+    body:
+      "解读这组数据：\n{{数据}}\n\n" +
+      "1. 先描述趋势与异常点，不要急着解释。\n" +
+      "2. 列出可能的驱动因素，按可验证性排序，并说明每种解释需要什么额外数据才能证实。\n" +
+      "3. 明确区分「相关」与「因果」，标注样本量与时间窗口带来的局限。\n" +
+      "4. 给出下一步建议：先看哪个指标、做什么对照。",
+  },
+  {
+    id: "prm_builtin_email",
+    title: "邮件润色",
+    description: "把生硬的草稿改成礼貌、直接、有明确下一步的邮件。",
+    category: "writing",
+    icon: "mail",
+    tags: ["邮件", "沟通"],
+    body:
+      "润色下面这封邮件，保持原意，语气{{语气}}。\n\n" +
+      "要求：\n" +
+      "- 主题行不超过 20 字，让人一眼知道要做什么\n" +
+      "- 第一段说清目的与期望动作\n" +
+      "- 删掉客套与重复，长句拆短\n" +
+      "- 结尾给出明确的下一步与时间点\n\n" +
+      "原邮件：\n{{原邮件}}",
+  },
+  {
+    id: "prm_builtin_release",
+    title: "发布说明",
+    description: "把提交记录整理成用户看得懂的更新日志。",
+    category: "dev",
+    icon: "rocket",
+    tags: ["发布", "Changelog"],
+    body:
+      "把下面的变更整理成发布说明，读者是真实用户，不是开发者。\n\n" +
+      "分组：新增 / 改进 / 修复 / 破坏性变更。每条一句话说清「用户能感知到什么变化」，不要照抄 commit message。\n" +
+      "破坏性变更必须写清升级步骤与影响范围。\n" +
+      "最后用一句话总结这次版本的主题。\n\n" +
+      "版本号：{{版本号}}\n变更：\n{{变更列表}}",
+  },
+  {
+    id: "prm_builtin_decision",
+    title: "决策对比",
+    description: "在几个方案之间做结构化取舍，给出可被质疑的推荐。",
+    category: "analysis",
+    icon: "scale",
+    tags: ["决策", "方案"],
+    body:
+      "帮我在这几个方案之间做选择：{{方案列表}}\n\n" +
+      "约束条件：{{约束条件}}\n\n" +
+      "1. 先定义评估维度（成本、交付周期、可维护性、风险、可逆性），并说明权重来自哪里。\n" +
+      "2. 用表格逐项打分，分数要给出理由，不要只给结论。\n" +
+      "3. 指出每个方案「在什么条件下会变成更好的选择」。\n" +
+      "4. 给出推荐与最关键的反对意见，明确哪些假设一旦不成立就要改选。",
+  },
+];
+
+function seedPrompts(): void {
+  const ts = now();
+  const insert = db.prepare(
+    `INSERT OR IGNORE INTO prompts (id, title, description, body, category, icon, tags, builtin, usage_count, created_by, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, NULL, ?, ?)`,
+  );
+  for (const p of BUILTIN_PROMPTS) {
+    insert.run(p.id, p.title, p.description, p.body, p.category, p.icon, JSON.stringify(p.tags), ts, ts);
+  }
+}
+
 export function seedDatabase(): void {
   ensureRoles();
   seedSkills();
+  seedPrompts();
 
   const ownerId = ensureUser({ email: "admin@tinybuddy.dev", name: "林小满", roleKey: "owner", colorIndex: 0 });
   ensureUser({ email: "ops@tinybuddy.dev", name: "陈可", roleKey: "admin", colorIndex: 1 });

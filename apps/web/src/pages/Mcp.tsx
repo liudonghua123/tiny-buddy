@@ -1,20 +1,31 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  AlertTriangle,
+  BookMarked,
+  BookOpen,
+  Bug,
   Check,
+  Cloud,
   Copy,
+  CreditCard,
+  Database,
+  ExternalLink,
+  Figma,
+  FileText,
+  Github,
+  Kanban,
   KeyRound,
   Plug,
   Plus,
   RefreshCw,
   Server,
-  Trash2,
-  Terminal,
-  Wrench,
-  AlertTriangle,
   ShieldCheck,
+  Terminal,
+  Trash2,
+  Wrench,
 } from "lucide-react";
 import clsx from "clsx";
-import type { ApiKey, McpServer } from "@tiny-buddy/shared";
+import type { ApiKey, McpPreset, McpServer } from "@tiny-buddy/shared";
 import { api } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import { useAuth } from "../lib/auth";
@@ -28,6 +39,19 @@ interface McpConfig {
   sample: Record<string, unknown>;
   tools: string[];
 }
+
+const PRESET_ICONS: Record<string, typeof Plug> = {
+  github: Github,
+  kanban: Kanban,
+  "book-marked": BookMarked,
+  "book-open": BookOpen,
+  bug: Bug,
+  "credit-card": CreditCard,
+  database: Database,
+  cloud: Cloud,
+  "file-text": FileText,
+  figma: Figma,
+};
 
 const SCOPE_OPTIONS = [
   "memory:read",
@@ -63,11 +87,13 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 }
 
 export function McpPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { can } = useAuth();
   const toast = useToast();
 
-  const [tab, setTab] = useState<"connections" | "server">("connections");
+  const [tab, setTab] = useState<"connections" | "directory" | "server">("connections");
+  const [presets, setPresets] = useState<McpPreset[]>([]);
+  const [presetKey, setPresetKey] = useState<string | null>(null);
   const [servers, setServers] = useState<McpServer[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState<string | null>(null);
@@ -112,7 +138,22 @@ export function McpPage() {
   useEffect(() => {
     void load();
     void loadKeys();
+    api<{ items: McpPreset[] }>("/mcp/presets")
+      .then((d) => setPresets(d.items))
+      .catch(() => setPresets([]));
   }, [load, loadKeys]);
+
+  /** 目录条目只负责预填：URL 与请求头都可以在弹窗里改，避免端点变更后不可用 */
+  const openPreset = (preset: McpPreset) => {
+    setForm({
+      name: preset.name,
+      url: preset.url,
+      transport: preset.transport,
+      headers: preset.auth.type === "bearer" ? JSON.stringify({ [preset.auth.header ?? "Authorization"]: "Bearer " }, null, 2) : "",
+    });
+    setPresetKey(preset.key);
+    setModal(true);
+  };
 
   const createServer = async () => {
     if (!form.name.trim() || !form.url.trim()) return;
@@ -126,6 +167,7 @@ export function McpPage() {
       });
       setModal(false);
       setForm({ name: "", url: "", transport: "http", headers: "" });
+      setPresetKey(null);
       setServers((prev) => [...prev, data.server]);
       void syncServer(data.server.id);
     } catch (err) {
@@ -196,6 +238,7 @@ export function McpPage() {
         <Tabs
           tabs={[
             { key: "connections", label: t("mcp.connections"), badge: servers.length },
+            { key: "directory", label: t("mcp.directory"), badge: presets.length },
             { key: "server", label: t("mcp.server") },
           ]}
           value={tab}
@@ -209,7 +252,13 @@ export function McpPage() {
                 {servers.length > 0 ? `${servers.length} · ${t("mcp.transportHint")}` : t("mcp.transportHint")}
               </p>
               {can("mcp:write") && (
-                <button className="btn-primary" onClick={() => setModal(true)}>
+                <button
+                  className="btn-primary"
+                  onClick={() => {
+                    setPresetKey(null);
+                    setModal(true);
+                  }}
+                >
                   <Plus size={15} /> {t("mcp.addServer")}
                 </button>
               )}
@@ -325,6 +374,77 @@ export function McpPage() {
           </>
         )}
 
+        {tab === "directory" && (
+          <div>
+            <p className="mb-3 text-[11.5px] leading-relaxed text-faint">{t("mcp.directoryHint")}</p>
+            <div className="grid gap-2.5 sm:grid-cols-2">
+              {presets.map((preset) => {
+                const Icon = PRESET_ICONS[preset.icon] ?? Plug;
+                const locked = preset.auth.type === "oauth";
+                return (
+                  <div key={preset.key} className="card flex flex-col p-3.5">
+                    <div className="flex items-start gap-2.5">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-elevated text-brand">
+                        <Icon size={16} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <h3 className="truncate text-[13.5px] font-semibold text-ink">{preset.name}</h3>
+                          <span className={clsx(
+                            "shrink-0 rounded-full px-1.5 py-0.5 text-[9.5px] font-medium",
+                            locked ? "bg-warn/10 text-warn" : preset.auth.type === "none" ? "bg-ok/10 text-ok" : "bg-elevated text-faint",
+                          )}>
+                            {locked ? "OAuth" : preset.auth.type === "none" ? t("mcp.authNone") : t("mcp.authToken")}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 truncate font-mono text-[10px] text-faint">{preset.url}</p>
+                      </div>
+                    </div>
+
+                    <p className="mt-2 line-clamp-2 min-h-[34px] text-[12px] leading-relaxed text-muted">
+                      {locale === "zh" ? preset.description : preset.descriptionEn}
+                    </p>
+
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {preset.tags.map((tag) => (
+                        <span key={tag} className="rounded-md bg-elevated px-1.5 py-0.5 text-[10px] text-faint">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+
+                    {locked && (
+                      <p className="mt-2 flex items-start gap-1 text-[10.5px] leading-relaxed text-warn">
+                        <AlertTriangle size={11} className="mt-0.5 shrink-0" />
+                        {locale === "zh" ? preset.auth.hint : preset.auth.hintEn}
+                      </p>
+                    )}
+
+                    <div className="mt-auto flex items-center justify-between gap-2 pt-3">
+                      <a
+                        href={preset.docsUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-1 text-[10.5px] text-faint transition hover:text-brand-ink"
+                      >
+                        <ExternalLink size={10} /> {t("mcp.docs")}
+                      </a>
+                      <button
+                        className="btn-outline px-2.5 py-1.5 text-[11.5px] disabled:pointer-events-none disabled:opacity-40"
+                        disabled={locked || !can("mcp:write")}
+                        onClick={() => openPreset(preset)}
+                        title={locked ? t("mcp.oauthUnsupported") : undefined}
+                      >
+                        <Plus size={12} /> {t("mcp.add")}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {tab === "server" && (
           <div className="space-y-4">
             <div className="rounded-2xl border border-line bg-gradient-to-br from-brand-soft/60 to-surface p-4">
@@ -437,6 +557,11 @@ export function McpPage() {
           }
         >
           <Field label={t("mcp.serverName")}>
+            {presetKey && (
+              <div className="mb-3.5 rounded-xl border border-brand/20 bg-brand-soft/50 px-3 py-2 text-[11.5px] leading-relaxed text-brand-ink">
+                {t("mcp.presetFilled")}
+              </div>
+            )}
             <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="ticket-system" autoFocus />
           </Field>
           <Field label={t("mcp.url")}>

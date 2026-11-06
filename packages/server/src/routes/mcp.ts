@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { asyncHandler, audit, HttpError, requireAuth, requirePermission } from "../lib/http";
 import { parseBody } from "../lib/validate";
+import { listMcpPresets } from "../services/mcpPresets";
 import {
   availableMcpTools,
   callMcpTool,
@@ -16,6 +17,15 @@ import {
 
 export const mcpRouter = Router();
 mcpRouter.use(requireAuth);
+
+/** 人工维护的目录：端点来自厂商文档，可一键填充到「添加连接」表单 */
+mcpRouter.get(
+  "/presets",
+  requirePermission("mcp:read"),
+  asyncHandler(async (_req, res) => {
+    res.json({ items: listMcpPresets() });
+  }),
+);
 
 mcpRouter.get(
   "/servers",

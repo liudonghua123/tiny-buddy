@@ -314,6 +314,24 @@ font-family-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
 聊天列宽 **760px**，是全站最窄的容器——为了行长控制在 40–55 个中文字符。
 
+### 6.14 命令面板
+
+| 项 | 规格 |
+| --- | --- |
+| 层级 | 遮罩 `z-[90]`（高于弹窗 80、低于 Toast 100），`bg-black/40 backdrop-blur-[2px]` |
+| 容器 | `max-w-xl`，`max-h-[76vh]`，`rounded-2xl` + `shadow-lift`，顶部距 6vh（`sm` 10vh） |
+| 输入行 | 高 48px，左侧 16px 搜索图标，右侧 `ESC` 键帽 |
+| 结果行 | 图标块 26×26（选中时 `bg-surface text-brand`），标题 13px，副标 10px，片段 11px 单行截断 |
+| 分组标题 | 10px / 500 / `uppercase tracking-[0.1em]` / `faint`，上下 2.5 / 0.5 |
+| 选中态 | `bg-brand-soft/70` + 标题转 `brand-ink` + 右侧 13px 箭头 |
+| 页脚 | 11px `faint`，左侧「↵ 打开」、右侧「⌘K 随时唤起」 |
+
+行为：输入防抖 160ms 并取消上一次请求；↑↓ 才触发滚动，鼠标悬停只改选中态；空输入展示「快捷操作 + 最近会话」。
+
+### 6.15 模板卡
+
+`card p-4` 竖排：32px 品牌浅底图标块 + 13.5px 标题 + 内置徽章 + 分类 10.5px；描述固定两行（`line-clamp-2` + `min-h-[34px]`，保证同排卡片底部对齐）；标签用 10px 圆角小方块；底部左「使用 N 次」、右「查看 / 使用 / 复制」，主操作「使用」用 `bg-brand-soft text-brand-ink` 的 28px 高小按钮。
+
 ---
 
 ## 7. 布局与响应式

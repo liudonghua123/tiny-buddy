@@ -10,6 +10,8 @@ import { authRouter } from "./routes/auth";
 import { sessionsRouter } from "./routes/sessions";
 import { chatRouter } from "./routes/chat";
 import { publicShareRouter, shareRouter } from "./routes/share";
+import { promptsRouter } from "./routes/prompts";
+import { searchRouter } from "./routes/search";
 import { memoryRouter } from "./routes/memory";
 import { skillsRouter } from "./routes/skills";
 import { knowledgeRouter } from "./routes/knowledge";
@@ -81,6 +83,8 @@ app.get("/mcp", (req, res, next) => {
 app.use("/api/auth", authRouter);
 app.use("/api/sessions", sessionsRouter);
 app.use("/api/sessions", chatRouter);
+app.use("/api/prompts", promptsRouter);
+app.use("/api/search", searchRouter);
 app.use("/api/sessions", shareRouter);
 app.use("/api/share", publicShareRouter);
 app.use("/api/memories", memoryRouter);

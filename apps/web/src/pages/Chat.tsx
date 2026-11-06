@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   ArrowUp,
   BarChart3,
@@ -20,13 +20,14 @@ import {
   Pin,
   PinOff,
   Plus,
+  Search,
   Sparkles,
   Square,
   Trash2,
   X,
 } from "lucide-react";
 import clsx from "clsx";
-import type { AgentEvent, Message, MessagePart, Session, Skill, ToolCallPart } from "@tiny-buddy/shared";
+import type { AgentEvent, Message, MessagePart, PromptTemplate, Session, Skill, ToolCallPart } from "@tiny-buddy/shared";
 import { api } from "../lib/api";
 import { streamChat, streamEdit, streamRegenerate } from "../lib/sse";
 import { useI18n } from "../lib/i18n";
@@ -46,6 +47,8 @@ import { ShareModal } from "../components/chat/ShareModal";
 import { MessageRow, MemoryBadge } from "../components/chat/MessageRow";
 import { SessionList } from "../components/chat/SessionList";
 import { SlashCommands, type SlashItem } from "../components/chat/SlashCommands";
+import { PromptPicker } from "../components/chat/PromptPicker";
+import { usePalette } from "../components/CommandPalette";
 
 interface LiveState {
   text: string;
@@ -73,7 +76,8 @@ export function Chat() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { t } = useI18n();
-  const { user } = useAuth();
+  const { user, can } = useAuth();
+  const palette = usePalette();
   const toast = useToast();
 
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -90,6 +94,7 @@ export function Chat() {
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [skillOpen, setSkillOpen] = useState(false);
+  const [promptOpen, setPromptOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Session | null>(null);
   const [menuSession, setMenuSession] = useState<Session | null>(null);
   const [shareSession, setShareSession] = useState<Session | null>(null);
@@ -478,10 +483,51 @@ export function Chat() {
 
   const activeSkill = useMemo(() => skills.find((s) => s.key === skillKey), [skills, skillKey]);
 
+  const applyPrompt = useCallback(
+    (prompt: PromptTemplate) => {
+      setInput(prompt.body);
+      setPromptOpen(false);
+      setSlashDismissed(true);
+      void api(`/prompts/${prompt.id}/use`, { method: "POST" }).catch(() => undefined);
+      requestAnimationFrame(() => {
+        const el = textareaRef.current;
+        if (!el) return;
+        el.focus();
+        el.setSelectionRange(el.value.length, el.value.length);
+      });
+    },
+    [],
+  );
+
+  /* 从模板库 / 命令面板带 ?prompt=<id> 进来：填入正文但不自动发送 */
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const pid = searchParams.get("prompt");
+    if (!pid) return;
+    let alive = true;
+    api<{ prompt: PromptTemplate }>(`/prompts/${pid}`)
+      .then((d) => {
+        if (alive) applyPrompt(d.prompt);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!alive) return;
+        const next = new URLSearchParams(searchParams);
+        next.delete("prompt");
+        setSearchParams(next, { replace: true });
+      });
+    return () => {
+      alive = false;
+    };
+    // 只在首次带参进入时处理，避免每次输入都重跑
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const slashItems: SlashItem[] = useMemo(
     () => [
       { key: "new", label: t("chat.cmdNew"), hint: "/new", description: t("chat.cmdNewDesc"), icon: Plus },
       { key: "clear", label: t("chat.cmdClear"), hint: "/clear", description: t("chat.cmdClearDesc"), icon: Eraser },
+      { key: "prompt", label: t("chat.cmdPrompt"), hint: "/prompt", description: t("chat.cmdPromptDesc"), icon: FileText },
       { key: "skill", label: t("chat.cmdSkill"), hint: "/skill", description: t("chat.cmdSkillDesc"), icon: Sparkles },
       { key: "export", label: t("chat.cmdExport"), hint: "/export", description: t("chat.cmdExportDesc"), icon: Download },
       { key: "share", label: t("chat.cmdShare"), hint: "/share", description: t("chat.cmdShareDesc"), icon: Link2 },
@@ -522,6 +568,10 @@ export function Chat() {
       case "skill":
         setInput("");
         setSkillOpen(true);
+        break;
+      case "prompt":
+        setInput("");
+        setPromptOpen(true);
         break;
       case "export":
         setInput("");
@@ -606,6 +656,9 @@ export function Chat() {
             </button>
           </div>
           <div className="flex shrink-0 items-center gap-1">
+            <button className="icon-btn" onClick={palette.open} title={t("palette.trigger")} aria-label={t("palette.trigger")}>
+              <Search size={16} />
+            </button>
             <button className="icon-btn lg:hidden" onClick={() => setHistoryOpen(true)} title={t("chat.history")}>
               <History size={16} />
             </button>
@@ -660,17 +713,35 @@ export function Chat() {
                   ))}
                 </div>
 
-                <button
-                  onClick={() => {
-                    setInput("/");
-                    setSlashDismissed(false);
-                    textareaRef.current?.focus();
-                  }}
-                  className="mt-5 flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-[11.5px] text-faint transition hover:border-brand/30 hover:text-muted"
-                >
-                  <span className="rounded bg-elevated px-1 font-mono text-[10px] text-muted">/</span>
-                  {t("chat.commandsHint")}
-                </button>
+                <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+                  <button
+                    onClick={() => {
+                      setInput("/");
+                      setSlashDismissed(false);
+                      textareaRef.current?.focus();
+                    }}
+                    className="flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-[11.5px] text-faint transition hover:border-brand/30 hover:text-muted"
+                  >
+                    <span className="rounded bg-elevated px-1 font-mono text-[10px] text-muted">/</span>
+                    {t("chat.commandsHint")}
+                  </button>
+                  {can("prompt:read") && (
+                    <button
+                      onClick={() => setPromptOpen(true)}
+                      className="flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-[11.5px] text-faint transition hover:border-brand/30 hover:text-muted"
+                    >
+                      <FileText size={11} />
+                      {t("chat.fromTemplate")}
+                    </button>
+                  )}
+                  <button
+                    onClick={palette.open}
+                    className="flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-[11.5px] text-faint transition hover:border-brand/30 hover:text-muted"
+                  >
+                    <Search size={11} />
+                    {t("palette.trigger")}
+                  </button>
+                </div>
               </div>
             )}
 
@@ -811,6 +882,17 @@ export function Chat() {
                     <span className="max-w-[110px] truncate">{activeSkill ? activeSkill.name : t("chat.autoSkill")}</span>
                     <ChevronDown size={10} />
                   </button>
+                  {can("prompt:read") && (
+                    <button
+                      onClick={() => setPromptOpen(true)}
+                      disabled={sending}
+                      className="flex h-6 w-6 items-center justify-center rounded-lg text-faint transition hover:bg-elevated hover:text-muted disabled:opacity-40"
+                      title={t("prompts.pickTitle")}
+                      aria-label={t("prompts.pickTitle")}
+                    >
+                      <FileText size={13} />
+                    </button>
+                  )}
                   <button
                     onClick={() => fileRef.current?.click()}
                     disabled={sending || attachBusy}
@@ -986,6 +1068,8 @@ export function Chat() {
           </div>
         )}
       </Modal>
+
+      <PromptPicker open={promptOpen} onClose={() => setPromptOpen(false)} onPick={applyPrompt} />
 
       {/* 分享 */}
       <ShareModal open={Boolean(shareSession)} sessionId={shareSession?.id ?? null} onClose={() => setShareSession(null)} />

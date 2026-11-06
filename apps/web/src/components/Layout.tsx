@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   MoreHorizontal,
+  Search,
   Sparkles,
   Sun,
   Moon,
@@ -19,6 +20,7 @@ import { useTheme } from "../lib/theme";
 import { initials } from "../lib/format";
 import { Modal } from "./ui";
 import { NAV_ITEMS, type NavItem } from "./nav";
+import { CommandPaletteProvider, usePalette } from "./CommandPalette";
 
 function useNavList() {
   const { can } = useAuth();
@@ -83,6 +85,7 @@ function UserCard({ onNavigate }: { onNavigate?: () => void }) {
 
 function Sidebar() {
   const { t } = useI18n();
+  const palette = usePalette();
   const nav = useNavList();
   const primary = nav.filter((n) => n.group === "primary");
   const admin = nav.filter((n) => n.group === "admin");
@@ -93,7 +96,16 @@ function Sidebar() {
         <Logo />
       </div>
 
-      <nav className="mt-7 flex flex-1 flex-col gap-0.5 overflow-y-auto px-0.5">
+      <button
+        onClick={palette.open}
+        className="mt-5 flex items-center gap-2 rounded-xl border border-line bg-elevated/60 px-2.5 py-2 text-[12px] text-faint transition hover:border-faint/50 hover:text-muted"
+      >
+        <Search size={13} />
+        <span className="flex-1 text-left">{t("palette.trigger")}</span>
+        <kbd className="rounded border border-line bg-surface px-1 py-0.5 text-[9.5px]">⌘K</kbd>
+      </button>
+
+      <nav className="mt-4 flex flex-1 flex-col gap-0.5 overflow-y-auto px-0.5">
         {primary.map((item) => (
           <NavItemLink key={item.to} item={item} label={t(item.key)} />
         ))}
@@ -162,6 +174,7 @@ function IconActions() {
 
 function MobileHeader({ onOpenMenu }: { onOpenMenu: () => void }) {
   const { t } = useI18n();
+  const palette = usePalette();
   const { pathname } = useLocation();
   const current = NAV_ITEMS.find((n) => pathname.startsWith(n.to));
 
@@ -171,7 +184,12 @@ function MobileHeader({ onOpenMenu }: { onOpenMenu: () => void }) {
         <Logo compact />
         <span className="text-[15px] font-semibold text-ink">{current ? t(current.key) : "TinyBuddy"}</span>
       </button>
-      <IconActions />
+      <div className="flex items-center gap-0.5">
+        <button className="icon-btn" onClick={palette.open} aria-label={t("palette.trigger")}>
+          <Search size={16} />
+        </button>
+        <IconActions />
+      </div>
     </header>
   );
 }
@@ -336,6 +354,7 @@ export function Layout() {
   }, [pathname]);
 
   return (
+    <CommandPaletteProvider>
     <div className="flex h-[100dvh] overflow-hidden bg-bg">
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
@@ -368,6 +387,7 @@ export function Layout() {
         </div>
       )}
     </div>
+    </CommandPaletteProvider>
   );
 }
 

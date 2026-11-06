@@ -347,6 +347,24 @@ Nav is permission-filtered: `NAV_ITEMS` declares `permission`; entries the user 
 The chat column is **760px**, the narrowest container on the site — it keeps lines at 40–55 CJK
 characters.
 
+### 6.14 Command palette
+
+| Item | Spec |
+| --- | --- |
+| Layer | Backdrop `z-[90]` (above modals at 80, below toasts at 100), `bg-black/40 backdrop-blur-[2px]` |
+| Panel | `max-w-xl`, `max-h-[76vh]`, `rounded-2xl` + `shadow-lift`, 6vh from the top (10vh on `sm`) |
+| Input row | 48px tall, 16px search icon, `ESC` keycap on the right |
+| Result row | 26×26 icon tile (selected: `bg-surface text-brand`), 13px title, 10px subtitle, 11px single-line snippet |
+| Group label | 10px / 500 / uppercase / `faint`, 2.5px top and 0.5px bottom |
+| Selected | `bg-brand-soft/70`, title turns `brand-ink`, 13px arrow on the right |
+| Footer | 11px `faint`: “↵ open” left, “⌘K anytime” right |
+
+Behaviour: 160ms debounce with the previous request aborted; only arrow keys scroll the list (hover just moves the selection); an empty query shows quick actions plus recent sessions.
+
+### 6.15 Template card
+
+`card p-4`, stacked: 32px brand-soft icon tile + 13.5px title + built-in chip + 10.5px category; description clamped to two lines (`line-clamp-2` + `min-h-[34px]` so cards in a row align); 10px rounded tag chips; footer with “used N×” on the left and “Preview / Use / Duplicate” on the right, where “Use” is a 28px `bg-brand-soft text-brand-ink` button.
+
 ---
 
 ## 7. Layout and responsive behaviour

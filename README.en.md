@@ -47,7 +47,7 @@ TinyBuddy models the AI as a **team member**:
 | It can't reach our systems | **MCP client** — connect any MCP server, tools auto-injected |
 | Other AIs can't reach it | **MCP server** — expose platform capabilities to Claude Desktop / Cursor |
 | It only reacts | **Schedules** — cron runs a full agent turn as the task owner |
-| I can't give it to colleagues | **RBAC** — 23 permissions, custom roles, scoped API keys, full audit trail |
+| I can't give it to colleagues | **RBAC** — 25 permissions, custom roles, scoped API keys, full audit trail |
 
 ---
 
@@ -59,11 +59,13 @@ TinyBuddy models the AI as a **team member**:
 | **Sharing** | Pin / rename / bulk delete, Markdown export, **read-only share links** with expiry, revoke and rotate — guests read without signing in |
 | **Memory** | 5 kinds (fact / preference / episode / procedure / entity); write-time dedup; hybrid scoring; manual CRUD + recall playground |
 | **Skills** | Declarative packs (instructions + triggers + references + required tools); **progressive disclosure** injects only active skills |
+| **Prompt library** | 10 built-in templates plus team-authored ones; `{{variable}}` placeholders; one click fills the composer, with duplicate, edit and usage counts |
 | **Knowledge** | Multiple bases, heading-aware chunking, lexical + vector hybrid search, hits carry document name and score |
-| **MCP client** | Streamable HTTP and SSE transports, automatic tool discovery |
+| **MCP client** | Streamable HTTP and SSE transports; a **connector directory** with 10 common services (GitHub, Linear, Stripe…) that pre-fills URL and auth header |
 | **MCP server** | 10 platform tools over standard MCP, API-key auth, scoped per key |
 | **Schedules** | 5-field cron, timezone aware, run-now, execution history, results land in a dedicated session |
-| **RBAC** | 4 built-in roles + custom roles, 23 permissions, one shared policy module, audit log |
+| **RBAC** | 4 built-in roles + custom roles, 25 permissions, one shared policy module, audit log |
+| **Speed** | **⌘K command palette** — one search across sessions, skills, documents, templates, schedules and memories, plus permission-filtered quick actions; works on mobile |
 | **Observability** | Run records (steps / tokens / latency), **usage insights** (daily trend, tool & skill heat, success rate), platform stats, audit trail |
 | **UX** | Mobile-first responsive, EN/中文, light / dark / system theme |
 
@@ -95,6 +97,12 @@ TinyBuddy models the AI as a **team member**:
 
 ![Skills](./docs/screenshots/skills.png)
 
+**Prompt library and command palette** — save recurring instructions as templates; ⌘K searches sessions, docs, templates and memories at once.
+
+| Prompt library | Command palette |
+| --- | --- |
+| ![Prompt library](./docs/screenshots/prompts.png) | ![Command palette](./docs/screenshots/command-palette.png) |
+
 | Knowledge base | Schedules |
 | --- | --- |
 | ![Knowledge](./docs/screenshots/knowledge.png) | ![Schedules](./docs/screenshots/schedules.png) |
@@ -110,6 +118,10 @@ TinyBuddy models the AI as a **team member**:
 | Members and roles | Audit log |
 | --- | --- |
 | ![Members](./docs/screenshots/members.png) | ![Audit](./docs/screenshots/audit.png) |
+
+**MCP connector directory** — pre-fills URL and auth header for common services; OAuth-only entries are labelled as unsupported.
+
+![MCP directory](./docs/screenshots/mcp-directory.png)
 
 **MCP server** — copy-ready client config, API keys with narrowed scopes.
 

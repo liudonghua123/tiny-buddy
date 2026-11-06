@@ -7,12 +7,16 @@
 - [约定](#约定)
 - [鉴权](#鉴权)
 - [会话与对话](#会话与对话)
+- [会话分享](#会话分享)
+- [全局检索](#全局检索)
 - [SSE 事件流](#sse-事件流)
 - [记忆](#记忆)
 - [技能](#技能)
+- [提示词模板](#提示词模板)
 - [知识库](#知识库)
 - [MCP](#mcp)
 - [定时任务](#定时任务)
+- [用量洞察](#用量洞察)
 - [API Key](#api-key)
 - [成员与角色](#成员与角色)
 - [平台](#平台)
@@ -136,6 +140,51 @@ Content-Type: application/json
 
 ---
 
+## 全局检索
+
+命令面板（⌘K）背后的统一搜索。一次请求横向查六类对象，按权限过滤，每组最多 5 条。
+
+```http
+GET /api/search?q=发布
+```
+
+| 字段 | 说明 |
+| --- | --- |
+| `q` | 关键词，最长 80 字符；空串直接返回空分组 |
+| `groups[].kind` | `session` / `skill` / `document` / `prompt` / `schedule` / `memory` |
+| `groups[].items[].href` | 前端可直接跳转的站内路径 |
+| `snippet` | 命中位置前后各 48 字符，已去掉附件正文 |
+
+```json
+{
+  "q": "发布",
+  "groups": [
+    {
+      "kind": "session",
+      "items": [{ "id": "ses_mvzx5v38aekekh", "title": "帮我总结一下发布流程", "subtitle": "会话标题", "href": "/chat/ses_mvzx5v38aekekh" }]
+    },
+    {
+      "kind": "document",
+      "items": [{
+        "id": "doc_...",
+        "title": "团队协作规范.md",
+        "subtitle": "知识库 · 团队手册",
+        "snippet": "…发布前 24 小时冻结非紧急合并…",
+        "href": "/knowledge?doc=doc_..."
+      }]
+    }
+  ]
+}
+```
+
+行为约定：
+
+- 会话标题命中排在消息内容命中之前；只会返回当前用户自己的会话。
+- 技能、文档、模板按 `skill:read` / `knowledge:read` / `prompt:read` 过滤；定时任务与记忆只查自己的。
+- 每用户限流 120 次/分钟，超限返回 `429 rate_limited`。
+
+---
+
 ## SSE 事件流
 
 每帧一行 `data: <json>\n\n`，结束时 `data: [DONE]`，另有 `: ping` 心跳。事件类型定义在 [`packages/shared/src/protocol.ts`](../packages/shared/src/protocol.ts)。
@@ -254,6 +303,36 @@ POST /api/skills
 
 ---
 
+## 提示词模板
+
+内置模板只读，团队模板可增删改。正文用 `{{变量}}` 留占位符，前端插入输入框后由用户替换。
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| GET | `/api/prompts` | `prompt:read` | 支持 `?q=` 与 `?category=`，返回 `{ items, stats }` |
+| GET | `/api/prompts/:id` | `prompt:read` | 单个模板 |
+| POST | `/api/prompts` | `prompt:write` | 新建 `{ title, description?, body, category?, icon?, tags? }` |
+| PATCH | `/api/prompts/:id` | `prompt:write` | 部分更新；内置模板返回 `403 builtin_readonly` |
+| DELETE | `/api/prompts/:id` | `prompt:write` | 删除；内置模板不可删 |
+| POST | `/api/prompts/:id/duplicate` | `prompt:write` | 复制为团队模板（标题加「（副本）」） |
+| POST | `/api/prompts/:id/use` | `prompt:read` | 使用计数 +1，用于「常用模板」排序 |
+
+```http
+POST /api/prompts
+{
+  "title": "周报生成",
+  "description": "把零散记录整理成有结论的周报",
+  "body": "把下面的记录整理成周报…\n\n本周记录：\n{{本周记录}}",
+  "category": "writing",
+  "icon": "file-text",
+  "tags": ["周报", "汇报"]
+}
+```
+
+`category` 建议取值：`writing` / `dev` / `meeting` / `research` / `analysis` / `product` / `general`；`tags` 最多 8 个，每个 20 字符。
+
+---
+
 ## 知识库
 
 | 方法 | 路径 | 权限 | 说明 |
@@ -312,6 +391,7 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 | DELETE | `/api/mcp/servers/:id` | `mcp:write` | 删除并断开 |
 | POST | `/api/mcp/servers/:id/sync` | `mcp:write` | 手动重新发现工具 |
 | POST | `/api/mcp/servers/:id/call` | `mcp:invoke` | 调试调用 `{ tool, arguments }` |
+| GET | `/api/mcp/presets` | `mcp:read` | 连接器目录（见下） |
 | GET | `/api/mcp/tools` | `mcp:read` | 所有外部工具汇总 |
 | GET | `/api/mcp/stats` | `mcp:read` | 连接数 / 工具数 |
 
@@ -326,6 +406,34 @@ POST /api/mcp/servers
 ```
 
 `transport` ∈ `http`（Streamable HTTP）| `sse`。连接失败不会抛 500，而是返回 `status: "error"` 与错误信息，便于前端提示而不阻断其他功能。
+
+### 连接器目录
+
+`GET /api/mcp/presets` 返回人工维护的常用连接器，供前端「一键预填」：
+
+```json
+{
+  "items": [{
+    "key": "github",
+    "name": "GitHub",
+    "description": "检索仓库、读写 Issue 与 PR…",
+    "descriptionEn": "Search repos, read and write issues and PRs…",
+    "category": "dev",
+    "url": "https://api.githubcopilot.com/mcp/",
+    "transport": "http",
+    "auth": {
+      "type": "bearer",
+      "header": "Authorization",
+      "hint": "用 Personal Access Token，按最小权限勾选 repo / read:org"
+    },
+    "docsUrl": "https://github.com/github/github-mcp-server",
+    "icon": "github",
+    "tags": ["代码", "Issue", "PR"]
+  }]
+}
+```
+
+`auth.type` ∈ `bearer` | `none` | `oauth`。当前版本没有 OAuth 流程，`oauth` 条目只做展示与提示，前端禁用「添加」。目录只是**模板**：URL 与请求头都会填进表单，允许用户修改后再连接。
 
 ### 作为服务端的入口
 

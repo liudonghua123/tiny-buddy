@@ -304,3 +304,61 @@ export interface SharedSession {
   expiresAt: string | null;
   messages: Pick<Message, "id" | "role" | "content" | "parts" | "createdAt">[];
 }
+
+/* ------------------------------- 提示词模板 ------------------------------- */
+
+export interface PromptTemplate {
+  id: string;
+  title: string;
+  description: string;
+  /** 模板正文，可含 {{变量}} 占位符 */
+  body: string;
+  category: string;
+  icon: string;
+  tags: string[];
+  builtin: boolean;
+  usageCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/* ------------------------------- 全局检索 ------------------------------- */
+
+export type SearchKind = "session" | "skill" | "document" | "prompt" | "schedule" | "memory";
+
+export interface SearchHit {
+  id: string;
+  kind: SearchKind;
+  title: string;
+  subtitle?: string;
+  snippet?: string;
+  /** 前端可直接 navigate 的路径 */
+  href: string;
+}
+
+export interface SearchGroup {
+  kind: SearchKind;
+  items: SearchHit[];
+}
+
+/* ------------------------------- MCP 目录 ------------------------------- */
+
+export interface McpPreset {
+  key: string;
+  name: string;
+  description: string;
+  descriptionEn: string;
+  category: "dev" | "productivity" | "data" | "design";
+  url: string;
+  transport: "http" | "sse";
+  auth: {
+    type: "bearer" | "none" | "oauth";
+    header?: string;
+    /** 取值提示，例如「GitHub PAT，勾选 repo 只读」 */
+    hint?: string;
+    hintEn?: string;
+  };
+  docsUrl: string;
+  icon: string;
+  tags: string[];
+}

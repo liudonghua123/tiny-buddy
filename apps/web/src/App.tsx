@@ -5,6 +5,7 @@ import { Login } from "./pages/Login";
 import { Chat } from "./pages/Chat";
 import { MemoryPage } from "./pages/Memory";
 import { SkillsPage } from "./pages/Skills";
+import { PromptsPage } from "./pages/Prompts";
 import { KnowledgePage } from "./pages/Knowledge";
 import { McpPage } from "./pages/Mcp";
 import { SchedulesPage } from "./pages/Schedules";
@@ -91,6 +92,14 @@ export default function App() {
             element={
               <RequirePermission permission="skill:read">
                 <SkillsPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/prompts"
+            element={
+              <RequirePermission permission="prompt:read">
+                <PromptsPage />
               </RequirePermission>
             }
           />

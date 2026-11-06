@@ -21,6 +21,8 @@
 - **我要给同事开账号** → [API · 成员与角色](./API.md#成员与角色)
 - **我想看运行与 token 花在哪** → [API · 用量洞察](./API.md#用量洞察)
 - **我想把这段对话发给同事看** → [API · 会话分享](./API.md#会话分享)
+- **我想快速找到某段对话或某份文档** → [API · 全局检索](./API.md#全局检索)
+- **我想把团队常用指令存成模板** → [API · 提示词模板](./API.md#提示词模板)
 - **我要做一个新页面，想让它看着像原生的一部分** → [UI 规范](./DESIGN.md) + [样式手册](./styleguide.html)
 - **我想把配色/圆角搬到别的项目** → [design-tokens.json](./design-tokens.json)
 
@@ -28,4 +30,4 @@
 
 全部界面截图位于 [`screenshots/`](./screenshots)，桌面 1440×900 @2x，移动端 390×844 @2x。
 
-新增：`share-modal.png`（分享弹窗）、`share-page.png`（访客免登录的只读页）、`chat-commands.png`（斜杠命令）、`chat-attachments.png`（文本附件）、`usage.png` / `mobile-usage.png`（用量洞察）。
+新增：`command-palette.png`（⌘K 命令面板）、`prompts.png`（提示词库）、`mcp-directory.png`（MCP 连接器目录）、`share-modal.png`（分享弹窗）、`share-page.png`（访客免登录的只读页）、`chat-commands.png`（斜杠命令）、`chat-attachments.png`（文本附件）、`usage.png` / `mobile-usage.png`（用量洞察）。

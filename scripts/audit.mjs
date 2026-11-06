@@ -38,6 +38,8 @@ async function login(page) {
 const desktop = { viewport: { width: 1440, height: 900 } };
 const mobile = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
 const shots = [];
+let runSessionId = null;
+let mRunSessionId = null;
 
 // ---------- 桌面 ----------
 const { ctx, page } = await newPage(desktop);
@@ -52,6 +54,8 @@ await page.waitForTimeout(900);
 await page.screenshot({ path: `${OUT}/d02-streaming.png` });
 shots.push("d02-streaming");
 await page.waitForTimeout(6000);
+const afterSend = page.url();
+if (afterSend.includes("/chat/")) runSessionId = afterSend.split("/chat/")[1];
 await page.screenshot({ path: `${OUT}/d03-tool-done.png` });
 shots.push("d03-tool-done");
 
@@ -91,6 +95,7 @@ shots.push("m01-chat");
 await m.page.fill("textarea", "你好");
 await m.page.keyboard.press("Enter");
 await m.page.waitForTimeout(7000);
+if (m.page.url().includes("/chat/")) mRunSessionId = m.page.url().split("/chat/")[1];
 await m.page.screenshot({ path: `${OUT}/m02-chat-done.png` });
 shots.push("m02-chat-done");
 
@@ -151,6 +156,57 @@ if (shareLink) {
   await guest.ctx.close();
 }
 
+// ---------- 命令面板 / 模板库 / MCP 目录 ----------
+try {
+  await page.goto(`${BASE}/chat`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(500);
+  await page.keyboard.press("Control+k");
+  await page.waitForTimeout(500);
+  const paletteOpen = (await page.locator('[role="dialog"] input').count()) > 0;
+  if (!paletteOpen) errors.push("[palette] Ctrl+K did not open the palette");
+  await page.screenshot({ path: `${OUT}/d14-palette.png` });
+  shots.push("d14-palette");
+
+  await page.locator('[role="dialog"] input').fill("发布");
+  await page.waitForTimeout(900);
+  const groups = await page.locator('[role="dialog"]').innerText();
+  for (const label of ["会话", "知识库", "提示词模板"]) {
+    if (!groups.includes(label)) errors.push(`[palette] missing group ${label}`);
+  }
+  await page.screenshot({ path: `${OUT}/d15-palette-results.png` });
+  shots.push("d15-palette-results");
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
+
+  await page.goto(`${BASE}/prompts`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(700);
+  const promptCards = await page.locator(".card").count();
+  if (promptCards < 10) errors.push(`[prompts] expected >=10 cards, got ${promptCards}`);
+  await page.screenshot({ path: `${OUT}/d16-prompts.png` });
+  shots.push("d16-prompts");
+
+  // 预览内置模板（只读，不产生写入）
+  await page.getByRole("button", { name: "查看" }).first().click();
+  await page.waitForTimeout(500);
+  const previewText = await page.locator('[role="dialog"]').last().innerText();
+  if (!previewText.includes("周报")) errors.push("[prompts] preview did not open the expected template");
+  await page.screenshot({ path: `${OUT}/d17-prompt-preview.png` });
+  shots.push("d17-prompt-preview");
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
+
+  await page.goto(`${BASE}/mcp`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(500);
+  await page.getByRole("tab", { name: /目录/ }).click();
+  await page.waitForTimeout(500);
+  const dirCards = await page.locator(".card").count();
+  if (dirCards < 8) errors.push(`[mcp] directory rendered only ${dirCards} cards`);
+  await page.screenshot({ path: `${OUT}/d18-mcp-directory.png` });
+  shots.push("d18-mcp-directory");
+} catch (err) {
+  errors.push(`[new-features] ${String(err).slice(0, 200)}`);
+}
+
 // 横向溢出检测
 const overflow = [];
 for (const p of [page, m.page]) {
@@ -161,6 +217,20 @@ for (const p of [page, m.page]) {
     clientW: document.documentElement.clientWidth,
   }));
   overflow.push(r);
+}
+
+// 清理本次审计创建的会话，避免演示数据越跑越多
+for (const sid of [runSessionId, mRunSessionId].filter(Boolean)) {
+  try {
+    await page.goto(`${BASE}/chat`, { waitUntil: "networkidle" });
+    await page.evaluate(async (id) => {
+      const token = localStorage.getItem("tb.token");
+      if (!token) return;
+      await fetch(`/api/sessions/${id}`, { method: "DELETE", headers: { authorization: `Bearer ${token}` } });
+    }, sid);
+  } catch (err) {
+    errors.push(`[cleanup] ${String(err).slice(0, 120)}`);
+  }
 }
 
 await browser.close();

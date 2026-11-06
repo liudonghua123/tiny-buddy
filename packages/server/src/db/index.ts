@@ -95,6 +95,21 @@ CREATE TABLE IF NOT EXISTS skills (
   created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS prompts (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT DEFAULT '',
+  body TEXT NOT NULL,
+  category TEXT DEFAULT 'general',
+  icon TEXT DEFAULT 'sparkles',
+  tags TEXT DEFAULT '[]',
+  builtin INTEGER DEFAULT 0,
+  usage_count INTEGER DEFAULT 0,
+  created_by TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS knowledge_bases (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -189,6 +204,7 @@ CREATE TABLE IF NOT EXISTS settings (
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_memories_user ON memories(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_chunks_kb ON chunks(kb_id);
+CREATE INDEX IF NOT EXISTS idx_prompts_category ON prompts(category, created_at);
 CREATE INDEX IF NOT EXISTS idx_runs_started ON runs(started_at);
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id, updated_at);
 CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at);

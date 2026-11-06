@@ -84,7 +84,12 @@ export function Modal({
   if (!open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center">
+    <div
+      className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center"
+      role="dialog"
+      aria-modal="true"
+      aria-label={typeof title === "string" ? title : undefined}
+    >
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
       <div
         className={clsx(
@@ -167,10 +172,12 @@ export function Tabs<T extends string>({
   onChange: (v: T) => void;
 }) {
   return (
-    <div className="mb-4 inline-flex rounded-xl border border-line bg-elevated p-1">
+    <div className="mb-4 inline-flex rounded-xl border border-line bg-elevated p-1" role="tablist">
       {tabs.map((tab) => (
         <button
           key={tab.key}
+          role="tab"
+          aria-selected={value === tab.key}
           onClick={() => onChange(tab.key)}
           className={clsx(
             "flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-[13px] font-medium transition",
