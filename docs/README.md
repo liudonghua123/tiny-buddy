@@ -7,6 +7,8 @@
 | [MCP 接入](./MCP.md) | 双向集成、10 个平台工具、客户端配置、权限收窄 | [EN](./MCP.en.md) |
 | [部署指南](./DEPLOYMENT.md) | systemd / Docker / Nginx / **Cloudflare Tunnel** 内网穿透 | [EN](./DEPLOYMENT.en.md) |
 | [项目说明](../README.md) | 功能、快速开始、设计取舍 | [EN](../README.en.md) |
+| [UI 设计规范](./DESIGN.md) | 设计令牌、字号阶梯、组件规格、断点、暗色、复用清单 | [EN](./DESIGN.en.md) |
+| [样式手册](./styleguide.html) | 可视化对照页：色板 / 字号 / 组件 / 动效，支持明暗切换 | — |
 
 ## 按场景查找
 
@@ -19,6 +21,8 @@
 - **我要给同事开账号** → [API · 成员与角色](./API.md#成员与角色)
 - **我想看运行与 token 花在哪** → [API · 用量洞察](./API.md#用量洞察)
 - **我想把这段对话发给同事看** → [API · 会话分享](./API.md#会话分享)
+- **我要做一个新页面，想让它看着像原生的一部分** → [UI 规范](./DESIGN.md) + [样式手册](./styleguide.html)
+- **我想把配色/圆角搬到别的项目** → [design-tokens.json](./design-tokens.json)
 
 ## 截图
 

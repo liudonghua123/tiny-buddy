@@ -7,7 +7,7 @@
 
 **一个可以直接跑起来的「AI 同事」平台。** TypeScript 全栈 B/S 架构，自带记忆、技能、知识库、MCP 双向通道与定时任务，权限体系基于 RBAC，并且能把平台能力以标准 MCP 服务对外开放。
 
-[English](./README.en.md) · [变更记录](./CHANGELOG.md) · [文档索引](./docs/README.md) · [架构](./docs/ARCHITECTURE.md) · [API](./docs/API.md) · [MCP](./docs/MCP.md) · [部署](./docs/DEPLOYMENT.md)
+[English](./README.en.md) · [变更记录](./CHANGELOG.md) · [文档索引](./docs/README.md) · [架构](./docs/ARCHITECTURE.md) · [API](./docs/API.md) · [MCP](./docs/MCP.md) · [部署](./docs/DEPLOYMENT.md) · [UI 规范](./docs/DESIGN.md)
 
 仓库：<https://github.com/liudonghua123/tiny-buddy> · 公网访问：[Cloudflare Tunnel 指南](./docs/DEPLOYMENT.md#6-cloudflare-tunnel)
 

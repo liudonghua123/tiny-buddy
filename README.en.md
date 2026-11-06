@@ -7,7 +7,7 @@
 
 **A runnable "AI teammate" platform.** Full-stack TypeScript, browser/server architecture. Ships with memory, skills, a knowledge base, bidirectional MCP, and scheduled tasks — guarded by RBAC, and able to expose the whole platform as a standard MCP server.
 
-[中文文档](./README.md) · [Changelog](./CHANGELOG.md) · [Docs index](./docs/README.md) · [Architecture](./docs/ARCHITECTURE.en.md) · [API](./docs/API.en.md) · [MCP](./docs/MCP.en.md) · [Deployment](./docs/DEPLOYMENT.en.md)
+[中文文档](./README.md) · [Changelog](./CHANGELOG.md) · [Docs index](./docs/README.md) · [Architecture](./docs/ARCHITECTURE.en.md) · [API](./docs/API.en.md) · [MCP](./docs/MCP.en.md) · [Deployment](./docs/DEPLOYMENT.en.md) · [Design](./docs/DESIGN.en.md)
 
 Repo: <https://github.com/liudonghua123/tiny-buddy> · Public access: [Cloudflare Tunnel guide](./docs/DEPLOYMENT.en.md#6-cloudflare-tunnel)
 

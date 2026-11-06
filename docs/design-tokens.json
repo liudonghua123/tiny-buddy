@@ -1,0 +1,98 @@
+{
+  "$schema": "https://design-tokens.github.io/community-group/format/",
+  "name": "TinyBuddy UI",
+  "version": "0.2.1",
+  "meta": {
+    "description": "Design tokens extracted from apps/web/src/styles.css and tailwind.config.js",
+    "modes": ["light", "dark"],
+    "source": "https://github.com/liudonghua123/tiny-buddy"
+  },
+  "color": {
+    "bg": { "light": "246 246 249", "dark": "12 12 17", "role": "canvas" },
+    "surface": { "light": "255 255 255", "dark": "20 20 27", "role": "card" },
+    "elevated": { "light": "255 255 255", "dark": "25 25 33", "role": "raised" },
+    "line": { "light": "233 233 240", "dark": "38 38 47", "role": "border" },
+    "ink": { "light": "23 23 29", "dark": "236 236 242", "role": "text-primary" },
+    "muted": { "light": "106 107 118", "dark": "155 156 168", "role": "text-secondary" },
+    "faint": { "light": "154 155 166", "dark": "111 112 124", "role": "text-tertiary" },
+    "brand": { "light": "109 74 255", "dark": "139 109 255", "role": "accent" },
+    "brand-soft": { "light": "240 236 255", "dark": "33 26 61", "role": "accent-surface" },
+    "brand-ink": { "light": "75 47 208", "dark": "196 181 255", "role": "accent-text" },
+    "ok": { "light": "31 157 114", "dark": "62 207 154", "role": "success" },
+    "warn": { "light": "194 117 31", "dark": "226 164 90", "role": "warning" },
+    "danger": { "light": "209 73 91", "dark": "242 112 127", "role": "danger" }
+  },
+  "contrast": {
+    "ink/surface": { "light": 17.85, "dark": 15.58 },
+    "muted/surface": { "light": 5.28, "dark": 6.73 },
+    "faint/surface": { "light": 2.76, "dark": 3.74, "warning": "below WCAG AA, decorative use only" },
+    "brand-ink/brand-soft": { "light": 6.94, "dark": 8.91 },
+    "white/brand": { "light": 5.15, "dark": 3.67, "warning": "dark mode: AA-large only" }
+  },
+  "typography": {
+    "fontFamily": {
+      "sans": "-apple-system, BlinkMacSystemFont, Inter, Segoe UI, PingFang SC, Hiragino Sans GB, Microsoft YaHei, sans-serif",
+      "mono": "ui-monospace, SFMono-Regular, Menlo, monospace"
+    },
+    "scale": {
+      "hero": { "size": 34, "weight": 600, "lineHeight": 1.2, "usage": "login hero" },
+      "h1": { "size": 26, "weight": 600, "lineHeight": 1.2, "usage": "page title (sm+)" },
+      "h1-mobile": { "size": 22, "weight": 600, "lineHeight": 1.25 },
+      "modal-title": { "size": 16, "weight": 600 },
+      "body-lg": { "size": 15, "weight": 400, "lineHeight": 1.72, "usage": "markdown body" },
+      "bubble": { "size": 14.5, "weight": 400, "lineHeight": 1.65, "usage": "user message" },
+      "button-lg": { "size": 14, "weight": 500 },
+      "nav": { "size": 13.5, "weight": 500 },
+      "control": { "size": 13, "weight": 500 },
+      "control-sm": { "size": 12.5, "weight": 400 },
+      "label": { "size": 12, "weight": 500, "letterSpacing": "0.025em", "textTransform": "uppercase" },
+      "meta": { "size": 11.5, "weight": 400 },
+      "chip": { "size": 11, "weight": 500 },
+      "micro": { "size": 10.5, "weight": 500 },
+      "decorative": { "size": 9.5, "weight": 400 }
+    }
+  },
+  "space": {
+    "base": 4,
+    "icon-text": [6, 8, 10],
+    "control-padding": { "x": 14, "y": 8 },
+    "card-padding": [16, 20],
+    "section-gap": [20, 28],
+    "page-padding": { "mobile": 16, "desktop": 24 }
+  },
+  "radius": {
+    "sm": 6,
+    "md": 8,
+    "control": 14,
+    "container": 18,
+    "modal": 24,
+    "pill": 999
+  },
+  "shadow": {
+    "soft": "0 1px 2px rgba(16,16,24,.04), 0 8px 24px -12px rgba(16,16,24,.12)",
+    "lift": "0 2px 4px rgba(16,16,24,.04), 0 16px 40px -16px rgba(16,16,24,.2)"
+  },
+  "motion": {
+    "fade-up": { "duration": 280, "easing": "cubic-bezier(.2,.8,.2,1)", "distance": 6 },
+    "pulse-soft": { "duration": 1400, "easing": "ease-in-out", "iterations": "infinite" },
+    "press": { "scale": 0.98, "duration": 150 }
+  },
+  "breakpoints": {
+    "sm": 640,
+    "lg": 1024
+  },
+  "layout": {
+    "sidebar": 252,
+    "chatColumn": 760,
+    "shareColumn": 860,
+    "contentColumns": { "narrow": 768, "medium": 896, "wide": 1024, "analytics": 1100 },
+    "mobileHeader": 48,
+    "mobileHeaderSm": 56,
+    "minTouchTarget": 36
+  },
+  "zIndex": {
+    "drawer": 70,
+    "modal": 80,
+    "toast": 100
+  }
+}
